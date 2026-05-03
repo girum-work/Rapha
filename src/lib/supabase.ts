@@ -12,9 +12,8 @@ export const supabase = hasSupabaseConfig
   ? createClient(supabaseUrl as string, supabaseAnonKey as string, {
       auth: {
         storage: AsyncStorage,
-        autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: false,
+        autoRefreshToken: true,
       },
     })
   : null;
