@@ -1,6 +1,6 @@
 import { DrawerActions } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowUp, Camera, MoreHorizontal, Paperclip, Stethoscope } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -241,6 +241,7 @@ function TriageCards({
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { prefill } = useLocalSearchParams<{ prefill?: string }>();
   const navigation = useNavigation();
   const [session, setSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -290,6 +291,12 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof prefill === 'string' && prefill.trim()) {
+      setInput(prefill);
+    }
+  }, [prefill]);
 
   const showTriageCard = lastStructured !== null && lastStructured.action !== 'ask_more' && !sending;
 

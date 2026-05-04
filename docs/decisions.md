@@ -153,3 +153,37 @@ OpenRouter/DeepSeek and Anthropic Claude are **not** used here.
 ### Drawer (`app/(drawer)/_layout.tsx`)
 
 - Nav order ends at **Settings** (no Account row); **`account`** route filtered out of custom drawer content.
+
+---
+
+## 2026-05-04 — Part 3 UI rebuild (Learn, Accessories, Care Options)
+
+### Learn (`app/(drawer)/learn.tsx`, `lesson.tsx`, `src/data/learnCurriculum.ts`)
+
+- **Health Academy** navy hero, progress from **`AsyncStorage`** keys **`lesson_complete_{lessonId}`** vs total lessons across **5 tracks** (Emergency First Aid, Infectious, Medications, Maternal & Child, Mental Wellbeing).
+- **Tracks:** horizontal cards with per-track color, lesson count, mini progress; selecting a track filters the lesson list below.
+- **Sequential unlock:** a lesson stays **locked** until all prior lessons in that track are marked complete.
+- **Featured card:** gradient **`primary` → `primaryMid`**; **Continue / Start** opens **`/lesson`**. Completion refreshes on focus via **`useFocusEffect`**.
+- **`app/(drawer)/lesson.tsx`:** Scroll-based read progress bar; sections (hero, key facts, body, steps, warnings, related accessories → **`/accessories`**); one embedded quiz from **`CURRICULUM_QUIZZES`**; sticky **Mark complete** writes **`lesson_complete_*`**.
+- **Daily challenge:** **`LearnDailyQuizModal`** — bottom sheet animation, 5 questions from **`DAILY_CHALLENGE_IDS`**, results + review reset.
+- **Quiz data:** **`CURRICULUM_QUIZZES`** in **`learnCurriculum.ts`**; **`QuizQuestion`** gains optional **`explanation`** (`src/types.ts`). Legacy **`src/data/learn.ts`** unchanged for older imports.
+
+### Accessories / wearables (`app/(drawer)/accessories.tsx`)
+
+- **Positioning:** connected-device UX (demo **Connect** toggles local state), manual vitals form, **`AsyncStorage`** **`rapha.vitals.entries`**, simplified **NEWS-style** aggregate score (not clinical NEWS2), **Share with Dr Lucas** / **Talk to Dr Lucas** → **`/`** with **`prefill`** query for chat composer.
+- **Fall detection:** same **`AsyncStorage`** key as Settings (**`rapha.pref.fallDetection`**).
+
+### Care Options (`app/(drawer)/services.tsx`)
+
+- **Context header** colors by **`action`**: **`emergency`** red, **`hospital`** / **`clinic`** amber, **`pharmacy`** green, default navy; optional **`conditionName`** param for subtitles.
+- **Facilities:** **`rankFacilities`** / filters from seeded **`facilities`**; cards with recommended banner, tags, call / maps (**`Linking`**), emergency-only **Request ambulance** + transport section (modals).
+- **Map:** Compact **`react-native-maps`** preview with user + facility markers (tap alerts for full map — Part 4 hook).
+- **Pharmacy:** **`matchPharmacies`**, drug chips, prescription image picker, stock lines per pharmacy.
+
+### Root chat (`app/(drawer)/index.tsx`)
+
+- **`prefill`** search param seeds the composer when navigating from Accessories.
+
+### Drawer (`app/(drawer)/_layout.tsx`)
+
+- **`lesson`** screen registered (**`headerShown: false`**); hidden from custom drawer list alongside **`account`**.

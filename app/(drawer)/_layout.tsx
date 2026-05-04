@@ -110,7 +110,7 @@ function DrawerContent(props: DrawerContentComponentProps) {
 
         <View style={styles.navBlock}>
           {sortedRoutes
-            .filter((route) => route.name !== 'account')
+            .filter((route) => route.name !== 'account' && route.name !== 'lesson')
             .map((route) => {
             const focused = activeRouteName === route.name;
             const meta = ROUTE_META[route.name];
@@ -233,6 +233,13 @@ export default function DrawerLayout() {
         options={{
           title: 'Settings',
           drawerIcon: ({ color }) => <Settings size={iconSize} stroke={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="lesson"
+        options={{
+          title: 'Lesson',
+          headerShown: false,
         }}
       />
     </Drawer>

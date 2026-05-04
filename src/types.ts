@@ -100,6 +100,7 @@ export type QuizQuestion = {
   question: string;
   options: string[];
   answerIndex: number;
+  explanation?: string;
 };
 
 export type Accessory = {
