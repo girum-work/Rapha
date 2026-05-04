@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -44,6 +44,7 @@ function lessonStatus(
 
 export default function LearnScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [selectedTrack, setSelectedTrack] = useState<LearningTrack>(LEARNING_TRACKS[0]);
   const [completedCount, setCompletedCount] = useState(0);
   const [completedSet, setCompletedSet] = useState<Set<string>>(new Set());
@@ -107,7 +108,10 @@ export default function LearnScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.md }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.hero}>
           <Text style={styles.heroTitle}>Health Academy</Text>
           <Text style={styles.heroSub}>Learn to protect yourself and others</Text>

@@ -112,6 +112,15 @@ export const typography = {
     letterSpacing: 0.5,
   },
   label: { fontSize: 13, fontWeight: '600' as const, color: colors.textSecondary },
+
+  /** Auth / marketing headers */
+  authBrand: { fontSize: 32, fontWeight: '700' as const, letterSpacing: -0.4, color: colors.primary },
+  authTagline: { fontSize: 14, fontWeight: '400' as const, color: colors.textSecondary },
+  authWelcome: { fontSize: 22, fontWeight: '700' as const, color: colors.primary },
+  authLead: { fontSize: 14, fontWeight: '400' as const, color: colors.textSecondary },
+  authCta: { fontSize: 16, fontWeight: '700' as const },
+  authSecondaryCta: { fontSize: 15, fontWeight: '600' as const, color: colors.textPrimary },
+  otpDigit: { fontSize: 22, fontWeight: '700' as const, color: colors.textPrimary },
 };
 
 /** Loaded via `useFonts` in `app/_layout.tsx`. */

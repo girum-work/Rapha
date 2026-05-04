@@ -1,5 +1,5 @@
-import { serve } from 'std/http/server.ts';
-import { createClient } from '@supabase/supabase-js';
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -66,26 +66,34 @@ serve(async (req: Request) => {
 
     const openAIMessages = buildOpenAIMessages(messages as { role?: string; content?: string }[], message);
 
-    const upstream = await fetch(GROQ_CHAT_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        stream: true,
-        max_tokens: 1200,
-        temperature: 0.3,
-        messages: [{ role: 'system', content: system }, ...openAIMessages],
-      }),
-    });
+    async function callGroqOnce(): Promise<string | null> {
+      const upstream = await fetch(GROQ_CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          stream: true,
+          max_tokens: 1200,
+          temperature: 0.3,
+          messages: [{ role: 'system', content: system }, ...openAIMessages],
+        }),
+      });
+      if (!upstream.ok || !upstream.body) return null;
+      return await readOpenAIStyleSSE(upstream.body);
+    }
 
-    if (!upstream.ok || !upstream.body) {
+    let fullText = await callGroqOnce();
+    if (!fullText) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      fullText = await callGroqOnce();
+    }
+    if (!fullText) {
       return jsonResponse(applyTripwire(mockResponse(message), tripwire, news2, clusters));
     }
 
-    const fullText = await readOpenAIStyleSSE(upstream.body);
     const parsed = parseModelOutput(fullText);
     const merged = applyTripwire(parsed, tripwire, news2, clusters);
     return jsonResponse(merged);

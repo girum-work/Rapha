@@ -37,6 +37,8 @@ export type ChatMessage = {
   content: string;
   structuredResponse?: TriageResponse;
   createdAt: string;
+  /** True when Dr Lucas could not reach the server; UI can prompt retry. */
+  connectionFallback?: boolean;
 };
 
 export type ChatSession = {

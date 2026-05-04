@@ -215,7 +215,11 @@ export default function AccessoriesScreen() {
             </Text>
             <View style={styles.grid}>
               {DEVICE_OPTIONS.map((d) => (
-                <Pressable key={d.id} style={styles.gridCell} onPress={() => Alert.alert(d.name, 'Demo connection — no OAuth in MVP.')}>
+                <Pressable
+                  key={d.id}
+                  style={styles.gridCell}
+                  onPress={() => Alert.alert(d.name, 'Device pairing is not available in this build yet.')}
+                >
                   <Text style={styles.gridIco}>{d.icon}</Text>
                   <Text style={styles.gridName}>{d.name}</Text>
                   <Text style={styles.gridTap}>Tap to connect</Text>
@@ -335,7 +339,7 @@ export default function AccessoriesScreen() {
             />
           </View>
           <Text style={fallOn ? styles.fallStatusOn : styles.fallStatusOff}>
-            {fallOn ? '✓ Monitoring active — session-based demo' : 'Fall detection is off'}
+            {fallOn ? '✓ Monitoring active for this session' : 'Fall detection is off'}
           </Text>
         </View>
 
@@ -361,7 +365,7 @@ export default function AccessoriesScreen() {
         ) : null}
 
         <Text style={styles.mapHint}>
-          Location demo: {ADDIS_CENTER.latitude.toFixed(2)}, {ADDIS_CENTER.longitude.toFixed(2)}
+          Default map area: Addis Ababa, Ethiopia ({ADDIS_CENTER.latitude.toFixed(2)}°, {ADDIS_CENTER.longitude.toFixed(2)}°)
         </Text>
       </ScrollView>
     </SafeAreaView>

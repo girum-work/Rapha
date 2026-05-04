@@ -16,7 +16,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { hasSupabaseConfig, supabase } from '../../src/lib/supabase';
 import { completeSession, deferSession, getOrCreateSession, sendChatMessage } from '../../src/lib/sessionStore';
@@ -241,6 +241,7 @@ function TriageCards({
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { prefill } = useLocalSearchParams<{ prefill?: string }>();
   const navigation = useNavigation();
   const [session, setSession] = useState<ChatSession | null>(null);
@@ -302,13 +303,31 @@ export default function HomeScreen() {
 
   async function handleSend() {
     if (!session || !input.trim()) return;
+    const text = input.trim();
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log('[DEBUG] Calling dr-lucas with:', {
+        message: text,
+        sessionId: session.id,
+        messageCount: messages.length,
+      });
+    }
     setLastStructured(null);
     setSending(true);
-    const result = await sendChatMessage(session, messages, input.trim());
+    setInput('');
+    const result = await sendChatMessage(session, messages, text);
+    if (__DEV__) {
+      const last = result.messages[result.messages.length - 1];
+      // eslint-disable-next-line no-console
+      console.log('[DEBUG] dr-lucas done', { connectionFallback: last?.connectionFallback });
+    }
     setSession(result.session);
     setMessages(result.messages);
     setLastStructured(result.structured);
-    setInput('');
+    const last = result.messages[result.messages.length - 1];
+    if (last?.connectionFallback) {
+      setInput(text);
+    }
     setSending(false);
     scrollToEnd();
   }
@@ -402,10 +421,10 @@ export default function HomeScreen() {
           style={styles.list}
           data={messages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + spacing.md }]}
           ListEmptyComponent={messages.length === 0 && !sending ? emptyState : null}
           ListFooterComponent={sending ? <TypingBubble /> : null}
-          renderItem={({ item }) => <MessageRow message={item} />}
+          renderItem={({ item }) => <MessageRow message={item} connectionFallback={item.connectionFallback === true} />}
           onContentSizeChange={scrollToEnd}
         />
 
@@ -418,9 +437,9 @@ export default function HomeScreen() {
           />
         ) : null}
 
-        <Text style={styles.disclaimer}>Rapha assists but does not replace a doctor</Text>
+        <Text style={styles.disclaimer}>Rapha helps you find care but does not replace a doctor</Text>
 
-        <View style={[styles.composerOuter, { paddingBottom: Platform.OS === 'ios' ? 34 : 16 }]}>
+        <View style={[styles.composerOuter, { paddingBottom: insets.bottom + spacing.sm }]}>
           <View style={styles.composerRow}>
             <Pressable style={styles.attachBtn} onPress={() => undefined}>
               <Paperclip size={18} color={colors.textSecondary} strokeWidth={2} />
@@ -454,7 +473,7 @@ export default function HomeScreen() {
   );
 }
 
-function MessageRow({ message }: { message: ChatMessage }) {
+function MessageRow({ message, connectionFallback }: { message: ChatMessage; connectionFallback: boolean }) {
   const isUser = message.role === 'user';
   if (isUser) {
     return (
@@ -471,8 +490,10 @@ function MessageRow({ message }: { message: ChatMessage }) {
         <Text style={styles.dlAvatarText}>DL</Text>
       </View>
       <View style={styles.assistantBubbleOuter}>
-        <View style={styles.assistantBubble}>
-          <Text style={styles.assistantBubbleText}>{message.content}</Text>
+        <View style={[styles.assistantBubble, connectionFallback && styles.assistantBubbleRetry]}>
+          <Text style={[styles.assistantBubbleText, connectionFallback && styles.assistantBubbleTextRetry]}>
+            {message.content}
+          </Text>
         </View>
       </View>
     </View>
@@ -608,10 +629,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  assistantBubbleRetry: {
+    backgroundColor: colors.urgentLight,
+    borderColor: colors.urgent,
+  },
   assistantBubbleText: {
     fontSize: 15,
     lineHeight: 22,
     color: colors.textPrimary,
+  },
+  assistantBubbleTextRetry: {
+    color: colors.urgent,
+    fontWeight: '600',
   },
   typingDotsRow: {
     flexDirection: 'row',

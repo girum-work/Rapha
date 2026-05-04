@@ -16,7 +16,7 @@ The root layout is responsible for Supabase-backed navigation (no Clerk, no OAut
    - **Session present, no row in **`public.profiles`** for `auth.uid()`** → **`/onboarding`**.
    - **Session present and profile exists** → **`/(drawer)/dashboard`** whenever the user would otherwise sit on **`sign-in`**, **`sign-up`**, or **`onboarding`**.
 5. **Loading UX:** fullscreen **teal** (theme `colors.primary`) + **“Rapha”** + spinner **only until the first `getSession` + profile probe finishes** (`bootstrapDone`). Do **not** tie the overlay to every `onAuthStateChange` profile refetch (that was blanketing onboarding/sign-in and felt like a “refresh”). **`TOKEN_REFRESHED`** updates session only (no profile round-trip). **`INITIAL_SESSION`** still runs **`syncProfileRow`** so React `hasProfile` stays aligned after cold start and password sign-in. When **`session` is still `null` in React** but the user is already on **`/onboarding`**, do **not** `replace('/sign-in')` (avoids a one-frame bounce after login). After onboarding **`profiles` upsert**, emit **`subscribeProfileRowUpdated`** so `hasProfile` updates before navigation (prevents `(drawer)` → forced **`/onboarding`** bounce that remounted the form).
-6. **Navigator:** **`Stack`** explicitly lists **`sign-in`**, **`sign-up`**, **`onboarding`**, and **`(drawer)`**. Expo Router requires matching **`app/sign-in.tsx`**, **`app/sign-up.tsx`**, etc.; the stack cannot exist as URLs without those modules.
+6. **Navigator:** **`Stack`** lists **`sign-in`**, **`sign-up`**, **`verify-otp`**, **`onboarding`**, and **`(drawer)`**. Public routes without a session: **`sign-in`**, **`sign-up`**, **`verify-otp`**. **`/onboarding`** without a session redirects to **`sign-in`**.
 
 Profile existence is verified with **`from('profiles').select('id').eq('id', user.id).maybeSingle()`** using the anon client and RLS (user reads own row).
 
@@ -104,7 +104,7 @@ OpenRouter/DeepSeek and Anthropic Claude are **not** used here.
 - **Header:** In-screen only (drawer **`headerShown: false`** on this route); overflow opens drawer via **`DrawerActions.openDrawer()`**; camera control present as UI placeholder (no behavior wired in Part 1).
 - **List:** `FlatList` not inverted; **`contentContainerStyle`** includes **`paddingBottom: 16`**; scroll-to-end on new messages / typing footer.
 - **Triage cards:** Shown only when latest structured **`action !== 'ask_more'`** and not while **`sending`**; hidden as soon as the user sends the next message (`lastStructured` cleared until the new reply returns). Cards branch on **`emergency`**, **`hospital` / `clinic`**, **`pharmacy`**, **`first_aid`**, **`self_care`** with the Part 1 visual spec (confidence bar = three segments filled to **`confidence`**; condition copy uses **`conditions[0]`** with **`rationale`** as the secondary line). **`Linking.openURL('tel:911')`** on “Call emergency contact” (placeholder number; localize later).
-- **Wiring:** Unchanged **`sendChatMessage`** / **`getOrCreateSession`** / **`deferSession`** / **`completeSession`** from **`src/lib/sessionStore.ts`** (still invokes **`chat-triage`** when configured).
+- **Wiring (updated Part 4):** **`sendChatMessage`** calls **`supabase.functions.invoke('dr-lucas', …)`**; the **`dr-lucas`** edge function forwards the same body to **`chat-triage`** so Groq logic stays in one place. On invoke/parse failure the client shows a neutral retry message (not mock clinical triage) and flags **`connectionFallback`** on the assistant message.
 
 ### Drawer (`app/(drawer)/_layout.tsx`)
 
@@ -187,3 +187,38 @@ OpenRouter/DeepSeek and Anthropic Claude are **not** used here.
 ### Drawer (`app/(drawer)/_layout.tsx`)
 
 - **`lesson`** screen registered (**`headerShown: false`**); hidden from custom drawer list alongside **`account`**.
+
+---
+
+## 2026-05-04 — Part 4 (final): Dr Lucas wiring, auth, polish, rules
+
+### AI provider and resilience
+
+- **Groq** remains the model path inside **`supabase/functions/chat-triage`** (see Step 5). **`GROQ_API_KEY`** must be set on the Supabase project for live replies; if missing or the upstream call fails, the function still returns deterministic structured fallback after **one automatic retry** (2s delay) on streaming failure.
+- **`supabase/functions/dr-lucas`**: thin HTTP proxy that re-posts the client body to **`/functions/v1/chat-triage`** with the caller’s **`Authorization`** header so the app only **`invoke`s `dr-lucas`**. Deploy with **`supabase functions deploy dr-lucas`** (and **`chat-triage`** when changed).
+- **Client (`src/lib/sessionStore.ts`)**: builds **`messages: { role, content }[]`** from the local transcript, passes **`message`**, **`sessionId`**, invokes **`dr-lucas`**. On error or malformed JSON, uses **`triageConnectionFallback()`** (neutral retry copy + **`connectionError`**), not **`makeMockTriage`**.
+
+### Auth UI and flow
+
+- **`app/sign-in.tsx`** / **`app/sign-up.tsx`**: navy/teal Rapha shell (logo circle + stethoscope), labeled fields, navy primary CTA, outlined secondary, inline errors (no “Supabase” wording).
+- **`app/verify-otp.tsx`**: six-digit OTP entry after email signup when no session is returned; **`verifyOtp`** type **`signup`**; resend via **`auth.resend`**. Success → **`/onboarding`**.
+- **`app/onboarding.tsx`**: three-step wizard (dots), optional profile photo (local image only; not persisted to **`profiles`** in this pass), required name/age/blood type, tag-style allergies/meds/conditions, emergency contact + Ethiopian **`09XXXXXXXX`** phone, location consent; **`saveOnboardingProfile`** then **`/(drawer)/dashboard`**. Toasts via **`ToastProvider`**.
+
+### Global polish
+
+- **`useSafeAreaInsets`**: applied to bottom **`contentContainerStyle`** / composer padding on chat, dashboard, history, learn, services; auth screens use insets on scroll roots.
+- **Loading:** **`Skeleton`** component used on dashboard and history loading states.
+- **Errors:** root **`ScreenErrorBoundary`** wraps the stack; auth/onboarding screens also wrap locally.
+- **Toasts:** **`src/context/ToastContext.tsx`** + **`useToast`**; **`ToastProvider`** in **`app/_layout.tsx`** (overlay slide-in, auto-dismiss).
+
+### Theme additions
+
+- **`typography`**: **`authBrand`**, **`authTagline`**, **`authWelcome`**, **`authLead`**, **`authCta`**, **`authSecondaryCta`**, **`otpDigit`** for auth/OTP screens (avoid ad-hoc font sizes in those files).
+
+### Product copy cleanup
+
+- Services default location label **Addis Ababa, Ethiopia**; ambulance/transport alerts and location help text avoid “MVP” / internal jargon. Accessories fall status and map hint rephrased. Settings location hint describes default city when consent is off.
+
+### Cursor rules
+
+- **`.cursorrules`** at repo root encodes identity, design tokens, architecture (including **`dr-lucas`** invoke), file layout, user-visible copy rules, and typecheck expectations.

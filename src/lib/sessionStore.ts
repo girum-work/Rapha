@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { makeMockTriage } from './mockTriage';
+import { makeMockTriage, triageConnectionFallback } from './mockTriage';
 import { hasSupabaseConfig, supabase } from './supabase';
 import { ChatMessage, ChatSession, TriageResponse } from '../types';
 
@@ -56,25 +56,27 @@ export async function sendChatMessage(
     createdAt: now(),
   };
 
-  const { reply, structured } = await callTriage(session.id, [...existingMessages, userMessage], content);
+  const triage = await callTriage(session.id, [...existingMessages, userMessage], content);
   const assistantMessage: ChatMessage = {
     id: `msg-${Date.now()}-assistant`,
     sessionId: session.id,
     role: 'assistant',
-    content: reply,
-    structuredResponse: structured,
+    content: triage.reply,
+    structuredResponse: triage.structured,
     createdAt: now(),
+    connectionFallback: triage.connectionError,
   };
 
   const updatedSession: ChatSession = {
     ...session,
     updatedAt: now(),
-    finalAction: structured.action === 'ask_more' ? session.finalAction : structured.action,
-    finalSeverity: structured.action === 'ask_more' ? session.finalSeverity : structured.severity,
+    finalAction: triage.structured.action === 'ask_more' ? session.finalAction : triage.structured.action,
+    finalSeverity:
+      triage.structured.action === 'ask_more' ? session.finalSeverity : triage.structured.severity,
   };
   const messages = [...existingMessages, userMessage, assistantMessage];
   await persistSession(updatedSession, messages);
-  return { session: updatedSession, messages, structured };
+  return { session: updatedSession, messages, structured: triage.structured };
 }
 
 export async function deferSession(session: ChatSession, hours = 6) {
@@ -97,15 +99,49 @@ async function persistSession(session: ChatSession, messages: ChatMessage[]) {
   ]);
 }
 
-async function callTriage(sessionId: string, messages: ChatMessage[], latestMessage: string) {
+async function callTriage(
+  sessionId: string,
+  messages: ChatMessage[],
+  latestMessage: string,
+): Promise<{ reply: string; structured: TriageResponse; connectionError?: boolean }> {
   if (hasSupabaseConfig && supabase) {
-    const { data, error } = await supabase.functions.invoke('chat-triage', {
-      body: { session_id: sessionId, messages, message: latestMessage },
+    const conversationHistory = messages.map((m) => ({ role: m.role, content: m.content }));
+    const trimmed = latestMessage.trim();
+
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log('[Rapha] dr-lucas invoke', {
+        message: trimmed,
+        sessionId,
+        messageCount: messages.length,
+      });
+    }
+
+    const { data, error } = await supabase.functions.invoke('dr-lucas', {
+      body: {
+        message: trimmed,
+        sessionId: sessionId || undefined,
+        messages: conversationHistory,
+      },
     });
 
-    if (!error && data?.reply && data?.structured) {
-      return data as { reply: string; structured: TriageResponse };
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log('[Rapha] dr-lucas response', error ? { error } : { hasReply: !!(data as { reply?: string })?.reply });
     }
+
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[Rapha] dr-lucas error', error);
+      return { ...triageConnectionFallback(), connectionError: true };
+    }
+
+    const payload = data as { reply?: string; structured?: TriageResponse } | null;
+    if (payload?.reply && payload?.structured) {
+      return { reply: payload.reply, structured: payload.structured };
+    }
+
+    return { ...triageConnectionFallback(), connectionError: true };
   }
 
   return makeMockTriage(latestMessage);

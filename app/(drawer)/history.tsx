@@ -19,8 +19,9 @@ import {
   UIManager,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Skeleton } from '../../src/components/Skeleton';
 import { hasSupabaseConfig, supabase } from '../../src/lib/supabase';
 import { colors, radius, spacing, typography } from '../../src/theme';
 
@@ -145,6 +146,7 @@ function circleStyle(session: ChatSessionRow): { bg: string; glyph: string } {
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -218,7 +220,11 @@ export default function HistoryScreen() {
       </View>
 
       {loading ? (
-        <Text style={styles.loadingText}>Loading…</Text>
+        <View style={styles.skeletonCol}>
+          <Skeleton width="100%" height={80} radius={12} />
+          <Skeleton width="92%" height={56} radius={12} />
+          <Skeleton width="88%" height={56} radius={12} />
+        </View>
       ) : sessions.length === 0 ? (
         <View style={styles.empty}>
           <MessageSquare size={48} color={colors.textTertiary} strokeWidth={1.5} />
@@ -229,7 +235,10 @@ export default function HistoryScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.md }]}
+          showsVerticalScrollIndicator={false}
+        >
           {sections.map(({ key, label }) => {
             const rows = grouped[key];
             if (!rows.length) return null;
@@ -386,7 +395,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     paddingVertical: 10,
   },
-  loadingText: { textAlign: 'center', marginTop: spacing.xl, color: colors.textSecondary },
+  skeletonCol: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.md },
   scroll: { paddingBottom: spacing.xxl, paddingHorizontal: 0 },
   sectionLabel: {
     fontSize: 11,

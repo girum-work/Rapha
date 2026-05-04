@@ -11,17 +11,10 @@ import {
   Stethoscope,
 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Skeleton } from '../../src/components/Skeleton';
 import { getOrCreateSession } from '../../src/lib/sessionStore';
 import { hasSupabaseConfig, supabase } from '../../src/lib/supabase';
 import { colors, radius, spacing, typography } from '../../src/theme';
@@ -148,6 +141,7 @@ function PulseOrb({ active }: { active: boolean }) {
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
   const [activeRemote, setActiveRemote] = useState<ChatSessionRow | null>(null);
@@ -264,14 +258,23 @@ export default function DashboardScreen() {
   if (loading) {
     return (
       <View style={styles.loadingRoot}>
-        <ActivityIndicator color={colors.accent} />
+        <Skeleton width="88%" height={28} radius={8} />
+        <View style={styles.skeletonGap} />
+        <Skeleton width="100%" height={120} radius={16} />
+        <View style={styles.skeletonGap} />
+        <Skeleton width="100%" height={80} radius={12} />
+        <View style={styles.skeletonGap} />
+        <Skeleton width="100%" height={72} radius={12} />
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.md }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.hero}>
           <View style={styles.heroRow1}>
             <View style={styles.heroTitles}>
@@ -497,7 +500,14 @@ function SessionRow({ session, onPress }: { session: ChatSessionRow; onPress: ()
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  loadingRoot: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  loadingRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.lg,
+  },
+  skeletonGap: { height: spacing.md },
   scroll: { paddingBottom: spacing.xxl },
   hero: {
     backgroundColor: colors.primary,

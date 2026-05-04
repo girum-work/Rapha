@@ -1,0 +1,43 @@
+# Rapha — Cursor AI Rules
+# These rules apply to ALL edits in this project
+
+## Identity
+This is Rapha, an AI-powered mobile health app for Ethiopia built with Expo React Native and Supabase.
+
+## Design System
+- Colors: navy #0A1628 primary, teal #00C2A8 accent, #F8FAFC background
+- All colors from src/theme.ts — never use hardcoded hex values in components
+- Typography from src/theme.ts — never use hardcoded font sizes in components
+- Border radius: sm=8, md=12, lg=16, xl=24
+- Shadows: iOS shadowColor+shadowOffset, Android elevation
+
+## Architecture Rules
+- Edge functions: only change supabase/functions when the task explicitly asks for Dr Lucas, triage, OCR, search, or related backend fixes.
+- Do not change src/lib/supabase.ts auth configuration unless the task says to.
+- Route AI chat through supabase.functions.invoke('dr-lucas') from the app client (implemented in src/lib/sessionStore.ts).
+- Use useSafeAreaInsets for bottom padding on scroll views and fixed bottom bars; pair with SafeAreaView as needed.
+- Handle loading, error, and empty states on every screen.
+
+## Code Style
+- TypeScript strict mode — no `any` types
+- Prefer async/await over long .then() chains
+- useMemo/useCallback for expensive computations
+- Always handle Supabase errors: const { data, error } = await supabase...
+- Prefer StyleSheet.create; avoid inline style objects with more than two properties
+
+## File Structure
+- Screen files: app/(drawer)/[name].tsx
+- Library files: src/lib/[name].ts
+- Components: src/components/[Name].tsx
+- Data: src/data/[name].ts
+
+## Content Rules
+- NO placeholder text — every user-visible string must be real product copy
+- NO "coming soon" — build the flow or hide the entry point
+- NO technical jargon visible to users (no "Supabase", "Edge Function", etc.)
+- NO "MVP" in user-visible copy
+- Disclaimer: Rapha helps you find care but does not replace a doctor
+
+## Testing
+- After substantive edits: npm run typecheck should pass
+- Prefer testing on a device with Expo Go; watch keyboard overlap and bottom navigation overlap

@@ -415,7 +415,7 @@ export default function SettingsScreen() {
               <MapPin size={20} color={colors.accent} />
               <View style={styles.toggleMid}>
                 <Text style={styles.rowLabel}>Location for facility ranking</Text>
-                <Text style={styles.toggleHint}>Uses demo coordinates when off</Text>
+                <Text style={styles.toggleHint}>When off, care search defaults to Addis Ababa, Ethiopia</Text>
               </View>
               <Switch
                 value={profile.location_consent}

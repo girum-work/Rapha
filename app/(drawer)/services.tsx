@@ -14,24 +14,25 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ADDIS_CENTER, facilities } from '../../src/data/facilities';
 import { matchPharmacies, rankFacilities } from '../../src/lib/facilitySearch';
 import { colors, radius, spacing, typography } from '../../src/theme';
 import type { Facility, Pharmacy, PharmacyStock } from '../../src/types';
 
-const DEMO_LOCATION = 'Addis Ababa (demo center)';
+const DEFAULT_LOCATION_LABEL = 'Addis Ababa, Ethiopia';
 
 const RECOMMENDED_DRUGS = ['paracetamol', 'oral rehydration salts', 'amoxicillin', 'cetirizine'];
 
 export default function ServicesScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ action?: string; conditionName?: string }>();
   const action = (params.action as string) ?? 'default';
   const conditionName = typeof params.conditionName === 'string' ? params.conditionName : null;
 
   const [uploaded, setUploaded] = useState<string | null>(null);
-  const [locationLabel] = useState(DEMO_LOCATION);
+  const [locationLabel] = useState(DEFAULT_LOCATION_LABEL);
 
   const header = useMemo(() => {
     if (action === 'emergency')
@@ -92,11 +93,13 @@ export default function ServicesScreen() {
   }
 
   function ambulanceModal() {
-    Alert.alert('Ambulance request', 'Demo only — no live dispatch in MVP.', [{ text: 'OK' }]);
+    Alert.alert('Ambulance request', 'This button prepares your details. Call emergency services directly for a live ambulance.', [
+      { text: 'OK' },
+    ]);
   }
 
   function transportModal(title: string) {
-    Alert.alert(title, 'Ride integrations are simulated for the MVP build.', [{ text: 'OK' }]);
+    Alert.alert(title, 'Ride booking through Rapha is not available yet. Use your usual ride app or a taxi stand.', [{ text: 'OK' }]);
   }
 
   const showTransport = action === 'emergency' || action === 'hospital';
@@ -116,14 +119,21 @@ export default function ServicesScreen() {
         <Text style={styles.heroSub}>{header.sub}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.md }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.locCard}>
           <MapPin size={20} color={colors.accent} strokeWidth={2} />
           <View style={styles.locMid}>
             <Text style={styles.locMain}>{locationLabel}</Text>
             <Text style={styles.locHint}>Your location</Text>
           </View>
-          <Pressable onPress={() => Alert.alert('Location', 'Uses demo coordinates until GPS is enabled.')}>
+          <Pressable
+            onPress={() =>
+              Alert.alert('Location', 'When GPS is off, listings are ranked from Addis Ababa. Turn on location for nearby results where supported.')
+            }
+          >
             <Text style={styles.update}>Update</Text>
           </Pressable>
         </View>

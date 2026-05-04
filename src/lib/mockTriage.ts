@@ -85,3 +85,19 @@ export function makeMockTriage(input: string): { reply: string; structured: Tria
     },
   };
 }
+
+/** When the edge function fails — neutral copy, not clinical mock triage. */
+export function triageConnectionFallback(): { reply: string; structured: TriageResponse } {
+  return {
+    reply: 'Dr Lucas is thinking… Tap Send again to retry.',
+    structured: {
+      conditions: [],
+      severity: 'mild',
+      confidence: 0,
+      red_flags: [],
+      action: 'ask_more',
+      required_services: [],
+      safety_disclaimer: disclaimer,
+    },
+  };
+}

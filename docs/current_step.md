@@ -1,28 +1,36 @@
 # Current step
 
-**As of:** 2026-05-04  
+**As of:** 2026-05-04
 
-## Latest: Part 3 — Learn, Accessories, Care Options
+## Status: Part 4 complete (UI rebuild final)
 
-1. **`src/data/learnCurriculum.ts`** — Five tracks, full lesson content, **`CURRICULUM_QUIZZES`**, daily challenge id list; completion keys **`lesson_complete_{id}`**.
-2. **`app/(drawer)/learn.tsx`** — Health Academy UI, track carousel, featured lesson gradient, daily quiz launcher, filtered lesson list with lock/play/done.
-3. **`app/(drawer)/lesson.tsx`** — Lesson reader + quiz + complete; accessory chips → **`/accessories`**.
-4. **`src/components/LearnDailyQuizModal.tsx`** — Bottom-sheet quick quiz with results.
-5. **`app/(drawer)/accessories.tsx`** — Wearables / vitals / NEWS-style card / fall toggle / Dr Lucas handoff via **`prefill`**.
-6. **`app/(drawer)/services.tsx`** — Contextual care header, facilities, map preview, pharmacy + prescription upload, transport actions.
-7. **`app/(drawer)/index.tsx`** — **`prefill`** param fills composer.
-8. **`app/(drawer)/_layout.tsx`** — **`lesson`** route; drawer hides **`lesson`** item.
+Parts 1–4 of the Rapha UI rebuild are implemented in-repo.
 
-## Quality
+### Part 4 delivered
+
+1. **`supabase/functions/dr-lucas`** — Proxies authenticated requests to **`chat-triage`**.
+2. **`supabase/functions/chat-triage`** — Single **2s** retry before mock fallback when Groq streaming fails.
+3. **`src/lib/sessionStore.ts`** — **`invoke('dr-lucas')`**, connection fallback + **`connectionFallback`** on messages.
+4. **`app/sign-in.tsx`**, **`app/sign-up.tsx`**, **`app/verify-otp.tsx`**, **`app/onboarding.tsx`** — Auth and 3-step onboarding per spec.
+5. **`app/_layout.tsx`** — **`verify-otp`** route, public auth gating, **`ToastProvider`**, **`ScreenErrorBoundary`**.
+6. **`src/context/ToastContext.tsx`**, **`src/components/Skeleton.tsx`**, **`src/components/ScreenErrorBoundary.tsx`** — Global polish.
+7. **Safe area** — Chat, dashboard, history, learn, services bottom padding via **`useSafeAreaInsets`**.
+8. **`.cursorrules`** — Project rules for Cursor agents.
+
+### Quality
 
 - **`npm run typecheck`** — passes (0 errors).
 
-## Verify on device
+### Deploy / ops (manual)
 
-- Learn: tracks, lesson detail, complete → progress updates; daily quiz modal.
-- Accessories: log vitals, NEWS card, share to chat.
-- Services: each **`action`** header; facility call/navigate; pharmacy upload stub.
+- Deploy **`dr-lucas`** (and updated **`chat-triage`**) to Supabase: e.g. **`supabase functions deploy dr-lucas`** / **`chat-triage`** with project linked.
+- Confirm **`GROQ_API_KEY`** is set in Supabase secrets for live Dr Lucas replies.
 
-## Earlier work (reference)
+### Remaining / follow-up (not blocking merge)
 
-- Parts 1–2 UI, dashboard/history/settings, theme tokens.
+- Optional: persist onboarding profile photo to storage + **`profiles`** when a column and policy exist.
+- Device QA: keyboard vs composer on low Android devices; full pass on Expo Go tunnel per checklist in Part 4 prompt.
+
+### Earlier reference
+
+- Parts 1–3: theme, drawer, chat, dashboard, history, settings, learn, accessories, services — see **`docs/decisions.md`**.
