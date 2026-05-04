@@ -15,10 +15,12 @@ The root layout is responsible for Supabase-backed navigation (no Clerk, no OAut
    - **No session** → **`/sign-in`** (public **`/sign-up`** stays reachable).
    - **Session present, no row in **`public.profiles`** for `auth.uid()`** → **`/onboarding`**.
    - **Session present and profile exists** → **`/(drawer)/dashboard`** whenever the user would otherwise sit on **`sign-in`**, **`sign-up`**, or **`onboarding`**.
-5. **Loading UX:** fullscreen **teal** (`theme `colors.primary`) + **“Rapha”** + spinner while **`getSession`/initial profile probe** completes (and whenever a profile re-fetch gate is intentionally active).
+5. **Loading UX:** fullscreen **teal** (theme `colors.primary`) + **“Rapha”** + spinner **only until the first `getSession` + profile probe finishes** (`bootstrapDone`). Do **not** tie the overlay to every `onAuthStateChange` profile refetch (that was blanketing onboarding/sign-in and felt like a “refresh”). **`TOKEN_REFRESHED`** updates session only (no profile round-trip). **`INITIAL_SESSION`** still runs **`syncProfileRow`** so React `hasProfile` stays aligned after cold start and password sign-in. When **`session` is still `null` in React** but the user is already on **`/onboarding`**, do **not** `replace('/sign-in')` (avoids a one-frame bounce after login). After onboarding **`profiles` upsert**, emit **`subscribeProfileRowUpdated`** so `hasProfile` updates before navigation (prevents `(drawer)` → forced **`/onboarding`** bounce that remounted the form).
 6. **Navigator:** **`Stack`** explicitly lists **`sign-in`**, **`sign-up`**, **`onboarding`**, and **`(drawer)`**. Expo Router requires matching **`app/sign-in.tsx`**, **`app/sign-up.tsx`**, etc.; the stack cannot exist as URLs without those modules.
 
 Profile existence is verified with **`from('profiles').select('id').eq('id', user.id).maybeSingle()`** using the anon client and RLS (user reads own row).
+
+**`profiles` onboarding columns:** migration **`0002_profiles_onboarding_fields.sql`** adds **`display_name`**, **`age`**, and **`chronic_conditions`**. Migration **`0003_profiles_ensure_app_columns.sql`** adds any remaining MVP columns (**`current_medications`**, **`allergies`**, contacts, etc.) with **`IF NOT EXISTS`** so partial / template `profiles` tables match the app upsert (fixes PostgREST **PGRST204** / “column not in schema cache”). Apply with **`supabase db push`** or paste into the Supabase SQL editor. **`saveOnboardingProfile`** calls **`auth.getUser()`** before upsert so the JWT is validated for RLS.
 
 ---
 
@@ -83,3 +85,35 @@ OpenRouter/DeepSeek and Anthropic Claude are **not** used here.
 ## 2026-05-03 — Recover from broken auth/signUp client call
 
 - **`app/(drawer)/account.tsx`**: `signUp` restored to **`signUp({ email, password })`** (single-arg form for `@supabase/supabase-js`), removing invalid second-argument redirects.
+
+---
+
+## 2026-05-04 — Part 1 UI rebuild (tokens, home chat, drawer)
+
+### Theme (`src/theme.ts`)
+
+- **Canonical palette:** deep navy **`#0A1628`** as `primary` (headers, Dr Lucas avatar bubble), teal **`#00C2A8`** as `accent` (CTAs, user bubble, active drawer accents), page canvas **`#F8FAFC`** as `background`, cards **`#FFFFFF`** as `surface`, borders **`#E2E8F0`**, type scale **`textPrimary` / `textSecondary` / `textTertiary`**.
+- **Severity:** `emergency` + `emergencyLight`, `urgent` + `urgentLight`, `mild` + `mildLight`; first-aid card uses **`info` / `infoLight`** (`#3B82F6` / `#EFF6FF`); self-care card uses neutral left rail **`#94A3B8`** on **`background`**.
+- **Chat bubbles:** user = teal (`userBubble` / white `userText`); assistant copy on white bordered bubble; “DL” avatar on navy circle.
+- **Spacing / radius:** adopted Part 1 scale (`xs`–`xxl`, `radius.sm`–`full`); kept **`xxs`** alias (= `xs`) for older component padding; kept **`fonts`** object for root `useFonts` until a later pass drops custom fonts.
+- **Legacy aliases** on `colors` preserve older names (`canvas`, `ink`, `hairline`, `danger`, etc.) so screens not yet migrated (sign-in, onboarding, dashboard, …) still typecheck and render sensibly.
+
+### Home / chat (`app/(drawer)/index.tsx`)
+
+- **Layout:** `SafeAreaView` **`edges={['top']}`** + `KeyboardAvoidingView` **`behavior`** `padding` on iOS / `height` on Android; composer **`paddingBottom`** 34 iOS / 16 Android for home indicator.
+- **Header:** In-screen only (drawer **`headerShown: false`** on this route); overflow opens drawer via **`DrawerActions.openDrawer()`**; camera control present as UI placeholder (no behavior wired in Part 1).
+- **List:** `FlatList` not inverted; **`contentContainerStyle`** includes **`paddingBottom: 16`**; scroll-to-end on new messages / typing footer.
+- **Triage cards:** Shown only when latest structured **`action !== 'ask_more'`** and not while **`sending`**; hidden as soon as the user sends the next message (`lastStructured` cleared until the new reply returns). Cards branch on **`emergency`**, **`hospital` / `clinic`**, **`pharmacy`**, **`first_aid`**, **`self_care`** with the Part 1 visual spec (confidence bar = three segments filled to **`confidence`**; condition copy uses **`conditions[0]`** with **`rationale`** as the secondary line). **`Linking.openURL('tel:911')`** on “Call emergency contact” (placeholder number; localize later).
+- **Wiring:** Unchanged **`sendChatMessage`** / **`getOrCreateSession`** / **`deferSession`** / **`completeSession`** from **`src/lib/sessionStore.ts`** (still invokes **`chat-triage`** when configured).
+
+### Drawer (`app/(drawer)/_layout.tsx`)
+
+- **Custom drawer content** loads **`profiles.display_name`** and auth email on mount (read-only Supabase client import; no changes under **`src/lib/`**).
+- **Chrome:** Drawer background **`primary`** (`#0A1628`); active item **`primaryMid`** + **3px `accent`** left border; inactive icons **`textTertiary`**; active icons **`accent`**; labels white, active label bold.
+- **Route order:** index (Dr Lucas) → dashboard → history → learn → accessories → services (Care Options) → settings → account. Emoji suffixes on labels per spec (e.g. Dr Lucas 💬, Dashboard 📊).
+- **Footer:** “Rapha v1.0” / “Ethiopia · MVP” in **`#475569`**.
+- **`DrawerNotificationBridge`** remains in **`app/_layout.tsx`** (unchanged in Part 1).
+
+### Deferred
+
+- **`android.softwareKeyboardLayoutMode`** / **`windowSoftInputMode`** not changed here (would touch **`app.json`** outside the Part 1 file scope); add if Android keyboard overlaps the composer in QA.

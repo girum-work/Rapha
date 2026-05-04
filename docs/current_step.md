@@ -1,21 +1,23 @@
-# Current step
-
-**As of:** 2026-05-03  
-
-## Latest: Session 2 + 15 root layout
-
-1. **`app/_layout.tsx`** — Restored Supabase-only auth gating: `getSession`, `onAuthStateChange` (with `TOKEN_REFRESHED` fast-path), profile row check on `profiles`, redirects to **`/sign-in`**, **`/onboarding`**, or **`/(drawer)/dashboard`**, teal **Rapha** loading overlay while auth/profile gate is resolving, root **`Stack`** for auth + drawer, and **`DrawerNotificationBridge`** for notification `data.url` deep links.
-2. **`app/sign-in.tsx`** / **`app/sign-up.tsx`** — Added as minimal email/password routes (Expo Router file-based requirement; **`/sign-in`** was already referenced from **`onboarding.tsx`** but had no module).
-
-## Quality
-
-- **`npm run typecheck`** — passes (0 errors).
-
-## Verify on device
-
-- Run **`npx expo start --tunnel --clear`**: unauthenticated users should land on **`/sign-in`** after the teal gate clears; sign-up at **`/sign-up`**; after session + profile, **`/(drawer)/dashboard`**.
-
-## Earlier work (reference)
-
-- Edge functions (Groq triage, Overpass facilities, pharmacy match, Paddle OCR), `account.tsx` `signUp` fix, and `src/lib/supabase.ts` client shape remain as in prior steps.
+# Current step
+
+**As of:** 2026-05-04  
+
+## Latest: Part 1 — Home chat UI + drawer redesign
+
+1. **`src/theme.ts`** — New navy / teal token system (`primary`, `accent`, severity, chat bubble colors, typography scale). Legacy keys (`canvas`, `ink`, `fonts`, etc.) kept so existing routes and root layout keep compiling.
+2. **`src/components/ui.tsx`** — Primary buttons use **`accent`** (teal); text colors align with **`textPrimary`** / **`textSecondary`**.
+3. **`app/(drawer)/index.tsx`** — Chat-style home: custom header (Dr Lucas + camera / overflow → drawer), empty state + suggestion chips, user / Dr Lucas bubbles, animated typing row while sending, triage action cards by **`action`**, disclaimer, composer with attach + **`KeyboardAvoidingView`**. Triage card clears when a new message is sent, then returns from the latest structured response. Profile **`display_name`** (or email prefix) for greeting via Supabase read only in this screen.
+4. **`app/(drawer)/_layout.tsx`** — Custom **`DrawerContentScrollView`**: navy drawer, profile block, ordered nav with active teal left border + **`primaryMid`** fill, footer version string, **`drawerType: 'slide'`**, **`index`** **`headerShown: false`**.
+
+## Quality
+
+- **`npm run typecheck`** — passes (0 errors).
+
+## Verify on device
+
+- Run **`npx expo start --tunnel --clear`**: open **Dr Lucas** home — empty state, chips, send flow, bubbles, triage cards; open drawer — navy chrome, nav states, profile. Optional follow-up: set Android **`softwareKeyboardLayoutMode`** in **`app.json`** if the keyboard overlaps the composer on some devices.
+
+## Earlier work (reference)
+
+- Root auth gating, sign-in/sign-up routes, edge functions, and `src/lib/*` unchanged in this step.
 

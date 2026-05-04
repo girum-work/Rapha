@@ -1,7 +1,7 @@
 import { PropsWithChildren, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
 
 export function Screen({ children }: PropsWithChildren) {
   return <View style={styles.screen}>{children}</View>;
@@ -9,6 +9,11 @@ export function Screen({ children }: PropsWithChildren) {
 
 export function Section({ children, style }: PropsWithChildren<{ style?: ViewStyle }>) {
   return <View style={[styles.section, style]}>{children}</View>;
+}
+
+/** Serif display — use for hero / auth headlines (DESIGN display-sm scale on mobile). */
+export function Display({ children }: PropsWithChildren) {
+  return <Text style={styles.display}>{children}</Text>;
 }
 
 export function Title({ children }: PropsWithChildren) {
@@ -31,10 +36,16 @@ export function Button({
   children,
   onPress,
   variant = 'primary',
-}: { children: ReactNode; onPress: () => void; variant?: 'primary' | 'secondary' | 'danger' }) {
+}: {
+  children: ReactNode;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary' | 'danger';
+}) {
   const content =
     typeof children === 'string' ? (
-      <Text style={[styles.buttonText, variant === 'secondary' && styles.secondaryButtonText]}>{children}</Text>
+      <Text style={[styles.buttonText, variant === 'secondary' && styles.secondaryButtonText, variant === 'danger' && styles.dangerButtonText]}>
+        {children}
+      </Text>
     ) : (
       children
     );
@@ -43,7 +54,13 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.button, buttonStyles[variant], pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.button,
+        buttonStyles[variant],
+        pressed && variant === 'primary' && styles.primaryPressed,
+        pressed && variant === 'secondary' && styles.secondaryPressed,
+        pressed && variant === 'danger' && styles.dangerPressed,
+      ]}
     >
       {content}
     </Pressable>
@@ -52,35 +69,35 @@ export function Button({
 
 const toneStyles = StyleSheet.create({
   default: {
-    backgroundColor: colors.surfaceMuted,
-    color: colors.textMuted,
-    borderColor: colors.border,
+    backgroundColor: colors.surfaceCard,
+    color: colors.muted,
+    borderColor: colors.hairline,
   },
   danger: {
     backgroundColor: colors.dangerSoft,
     color: colors.danger,
-    borderColor: '#fecaca',
+    borderColor: colors.hairline,
   },
   warning: {
     backgroundColor: colors.warningSoft,
     color: colors.warning,
-    borderColor: '#fed7aa',
+    borderColor: colors.hairline,
   },
   success: {
     backgroundColor: colors.successSoft,
     color: colors.success,
-    borderColor: '#bbf7d0',
+    borderColor: colors.hairline,
   },
 });
 
 const buttonStyles = StyleSheet.create({
   primary: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   secondary: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    borderColor: colors.hairline,
   },
   danger: {
     backgroundColor: colors.danger,
@@ -91,61 +108,87 @@ const buttonStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
-    padding: spacing.lg,
-    gap: spacing.md,
+    backgroundColor: colors.canvas,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   section: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: colors.surfaceCard,
+    borderColor: colors.hairline,
     borderWidth: 1,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.lg,
-    gap: spacing.md,
+    gap: spacing.sm,
+  },
+  display: {
+    fontFamily: fonts.display,
+    color: colors.textPrimary,
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: '500',
+    letterSpacing: -0.4,
   },
   title: {
-    color: colors.text,
+    fontFamily: fonts.display,
+    color: colors.textPrimary,
     fontSize: 22,
     lineHeight: 28,
-    fontWeight: '700',
+    fontWeight: '500',
+    letterSpacing: -0.2,
   },
   body: {
-    color: colors.text,
-    fontSize: 15,
-    lineHeight: 21,
+    fontFamily: fonts.body,
+    color: colors.textPrimary,
+    fontSize: 16,
+    lineHeight: 25,
   },
   muted: {
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
+    fontFamily: fonts.body,
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
   },
   badge: {
     alignSelf: 'flex-start',
     borderWidth: 1,
     borderRadius: radius.sm,
+    fontFamily: fonts.bodyMedium,
     fontSize: 12,
-    fontWeight: '600',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    fontWeight: '500',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xxs,
     overflow: 'hidden',
   },
   button: {
-    minHeight: 44,
+    minHeight: 40,
     borderWidth: 1,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
-    color: colors.surface,
-    fontWeight: '700',
-    fontSize: 15,
+    fontFamily: fonts.bodyMedium,
+    color: colors.onPrimary,
+    fontWeight: '500',
+    fontSize: 14,
+    lineHeight: 18,
   },
   secondaryButtonText: {
-    color: colors.text,
+    color: colors.textPrimary,
   },
-  pressed: {
-    opacity: 0.78,
+  dangerButtonText: {
+    color: colors.onPrimary,
+  },
+  primaryPressed: {
+    backgroundColor: colors.accentDark,
+    borderColor: colors.accentDark,
+  },
+  secondaryPressed: {
+    backgroundColor: colors.surfaceSoft,
+  },
+  dangerPressed: {
+    opacity: 0.88,
   },
 });
