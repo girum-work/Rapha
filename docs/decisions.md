@@ -110,10 +110,46 @@ OpenRouter/DeepSeek and Anthropic Claude are **not** used here.
 
 - **Custom drawer content** loads **`profiles.display_name`** and auth email on mount (read-only Supabase client import; no changes under **`src/lib/`**).
 - **Chrome:** Drawer background **`primary`** (`#0A1628`); active item **`primaryMid`** + **3px `accent`** left border; inactive icons **`textTertiary`**; active icons **`accent`**; labels white, active label bold.
-- **Route order:** index (Dr Lucas) → dashboard → history → learn → accessories → services (Care Options) → settings → account. Emoji suffixes on labels per spec (e.g. Dr Lucas 💬, Dashboard 📊).
+- **Route order:** index (Dr Lucas) → dashboard → history → learn → accessories → services (Care Options) → settings (Account removed from drawer in Part 2 — see Part 2 decisions). Emoji suffixes on labels per spec (e.g. Dr Lucas 💬, Dashboard 📊).
 - **Footer:** “Rapha v1.0” / “Ethiopia · MVP” in **`#475569`**.
 - **`DrawerNotificationBridge`** remains in **`app/_layout.tsx`** (unchanged in Part 1).
 
 ### Deferred
 
 - **`android.softwareKeyboardLayoutMode`** / **`windowSoftInputMode`** not changed here (would touch **`app.json`** outside the Part 1 file scope); add if Android keyboard overlaps the composer in QA.
+
+---
+
+## 2026-05-04 — Part 2 UI rebuild (dashboard, history, settings)
+
+### Dashboard (`app/(drawer)/dashboard.tsx`)
+
+- **Shell:** `ScrollView` on **`#F8FAFC`** (`colors.background`), **`SafeAreaView`** top only.
+- **Hero:** Navy **`#0A1628`** with rounded bottom corners; greeting uses **`display_name`** from **`profiles`** (or email local-part); notification bell with teal dot when **remote `chat_sessions.status === 'active'`** or local **`getOrCreateSession()`** is active/deferred.
+- **Health card:** Last severity from most recent of the **top 3** sessions returned (same query); pulse animation on gradient orb when a session is active (remote or local).
+- **Quick actions:** New Chat → **`/(drawer)/`**; Pharmacy / Find Care → **`/services`** with **`action`** **`pharmacy`** / **`hospital`**.
+- **Active card:** Shown when Supabase returns an **`active`** row; preview from first user message in nested **`chat_messages`**.
+- **Metrics:** Blood type, **`current_medications`**, **`allergies`**, emergency name — counts / “Not set” from **`profiles`**; all rows navigate to **`/settings`**.
+- **Recent sessions:** Last **3** **`chat_sessions`** for **`auth.uid()`**, nested **`chat_messages`**, “See all” → **`/history`**. Session rows tap → **`/history`** (not per-session detail).
+- **Daily tip:** **`expo-linear-gradient`** card; copy rotates by weekday (Monday-indexed array).
+- **Data:** Requires Supabase for remote sessions/profile; without config, metrics empty and recent list shows empty state.
+
+### History (`app/(drawer)/history.tsx`)
+
+- Grouping: **Today / Yesterday / This week / Earlier** with **`LayoutAnimation`** on expand.
+- Rows expand inline (last **6** messages, teal user / white assistant bubbles); **Resume** / **View full** → **`/(drawer)/`** (no session-id routing yet).
+- Search filters title/subtitle text.
+- **Fetch:** All user **`chat_sessions`** with **`chat_messages(id, content, role, created_at)`** ordered by **`started_at`** desc.
+
+### Settings / Account (`app/(drawer)/settings.tsx`, `account.tsx`)
+
+- **Single settings hub:** Medical profile ( **`display_name`**, **`age`**, **`blood_type`**, **`allergies`**, **`current_medications`**, **`chronic_conditions`**, emergency name/phone ), **`location_consent`** on **`profiles`** with **500ms debounced** **`update()`**.
+- **Push notifications** and **fall detection** persist via **`AsyncStorage`** (**`rapha.pref.*`**) — not **`profiles`** columns (schema does not include them).
+- **Change password:** **`supabase.auth.updateUser({ password })`** in a modal.
+- **Privacy / Terms:** external **`Linking.openURL`** (placeholder WHO URLs).
+- **Sign out:** **`supabase.auth.signOut()`** → **`router.replace('/sign-in')`**.
+- **`app/(drawer)/account.tsx`** is **`Redirect`** to **`/settings`**; **Account** removed from drawer list (**`ROUTE_META`** / filter **`account`**). Deep link **`/account`** still resolves to redirect.
+
+### Drawer (`app/(drawer)/_layout.tsx`)
+
+- Nav order ends at **Settings** (no Account row); **`account`** route filtered out of custom drawer content.

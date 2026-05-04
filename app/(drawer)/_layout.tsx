@@ -8,7 +8,6 @@ import {
   MessageCircle,
   Settings,
   Stethoscope,
-  UserRound,
   Watch,
 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -30,7 +29,6 @@ const ROUTE_META: Record<
   accessories: { label: 'Accessories', Icon: Watch },
   services: { label: 'Care Options', Icon: Stethoscope },
   settings: { label: 'Settings', Icon: Settings },
-  account: { label: 'Account', Icon: UserRound },
 };
 
 /** Preferred drawer order (routes omitted fall back to navigation order). */
@@ -42,7 +40,6 @@ const ROUTE_ORDER = [
   'accessories',
   'services',
   'settings',
-  'account',
 ];
 
 function DrawerContent(props: DrawerContentComponentProps) {
@@ -112,7 +109,9 @@ function DrawerContent(props: DrawerContentComponentProps) {
         <View style={styles.divider} />
 
         <View style={styles.navBlock}>
-          {sortedRoutes.map((route) => {
+          {sortedRoutes
+            .filter((route) => route.name !== 'account')
+            .map((route) => {
             const focused = activeRouteName === route.name;
             const meta = ROUTE_META[route.name];
             if (!meta) return null;
@@ -234,13 +233,6 @@ export default function DrawerLayout() {
         options={{
           title: 'Settings',
           drawerIcon: ({ color }) => <Settings size={iconSize} stroke={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="account"
-        options={{
-          title: 'Account',
-          drawerIcon: ({ color }) => <UserRound size={iconSize} stroke={color} />,
         }}
       />
     </Drawer>

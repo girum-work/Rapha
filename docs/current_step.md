@@ -2,12 +2,13 @@
 
 **As of:** 2026-05-04  
 
-## Latest: Part 1 — Home chat UI + drawer redesign
+## Latest: Part 2 — Dashboard, History, Settings
 
-1. **`src/theme.ts`** — New navy / teal token system (`primary`, `accent`, severity, chat bubble colors, typography scale). Legacy keys (`canvas`, `ink`, `fonts`, etc.) kept so existing routes and root layout keep compiling.
-2. **`src/components/ui.tsx`** — Primary buttons use **`accent`** (teal); text colors align with **`textPrimary`** / **`textSecondary`**.
-3. **`app/(drawer)/index.tsx`** — Chat-style home: custom header (Dr Lucas + camera / overflow → drawer), empty state + suggestion chips, user / Dr Lucas bubbles, animated typing row while sending, triage action cards by **`action`**, disclaimer, composer with attach + **`KeyboardAvoidingView`**. Triage card clears when a new message is sent, then returns from the latest structured response. Profile **`display_name`** (or email prefix) for greeting via Supabase read only in this screen.
-4. **`app/(drawer)/_layout.tsx`** — Custom **`DrawerContentScrollView`**: navy drawer, profile block, ordered nav with active teal left border + **`primaryMid`** fill, footer version string, **`drawerType: 'slide'`**, **`index`** **`headerShown: false`**.
+1. **`app/(drawer)/dashboard.tsx`** — Navy hero, health status + pulse orb, overlapping quick-action card, optional active consultation card, health metric grid ( **`profiles`** ), recent **`chat_sessions`** (nested messages), weekday daily tip with **`expo-linear-gradient`**.
+2. **`app/(drawer)/history.tsx`** — Search, date grouping, expandable rows with last 6 messages, status badges, Resume / View full to chat.
+3. **`app/(drawer)/settings.tsx`** — Unified profile + preferences + account actions; debounced Supabase **`profiles`** updates; toggles for push/fall via **`AsyncStorage`**; sign-out.
+4. **`app/(drawer)/account.tsx`** — Redirect to **`/settings`**.
+5. **`app/(drawer)/_layout.tsx`** — Drawer list no longer shows Account (**`account`** route hidden from custom drawer).
 
 ## Quality
 
@@ -15,9 +16,8 @@
 
 ## Verify on device
 
-- Run **`npx expo start --tunnel --clear`**: open **Dr Lucas** home — empty state, chips, send flow, bubbles, triage cards; open drawer — navy chrome, nav states, profile. Optional follow-up: set Android **`softwareKeyboardLayoutMode`** in **`app.json`** if the keyboard overlaps the composer on some devices.
+- Dashboard loads profile and session lists when Supabase is configured; History lists and expands sessions; Settings edits persist; drawer shows Settings only (no duplicate Account).
 
 ## Earlier work (reference)
 
-- Root auth gating, sign-in/sign-up routes, edge functions, and `src/lib/*` unchanged in this step.
-
+- Part 1 tokens, home chat, drawer chrome; root auth and **`sessionStore`** local chat unchanged here.
