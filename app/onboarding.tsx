@@ -277,9 +277,9 @@ export default function OnboardingScreen() {
             {[0, 1, 2].map((i) => (
               <View key={i} style={[styles.dot, i <= step && styles.dotOn]} />
             ))}
-          </View>
+      </View>
           <View style={styles.backPlaceholder} />
-        </View>
+      </View>
 
         <ScrollView
           keyboardShouldPersistTaps="handled"
@@ -290,24 +290,26 @@ export default function OnboardingScreen() {
             <View>
               <Text style={styles.title}>Tell us about you</Text>
               <Text style={styles.sub}>This helps Dr Lucas guide you safely.</Text>
-              <Pressable style={styles.avatarWrap} onPress={pickPhoto}>
-                {photoUri ? (
-                  <Image source={{ uri: photoUri }} style={styles.avatarImg} />
-                ) : (
-                  <View style={styles.avatarEmpty}>
-                    <Camera size={28} color={colors.textSecondary} strokeWidth={2} />
-                    <Text style={styles.avatarHint}>Add photo (optional)</Text>
-                  </View>
-                )}
-              </Pressable>
+              <View style={styles.avatarBlock}>
+                <Pressable onPress={pickPhoto} accessibilityRole="button">
+                  {photoUri ? (
+                    <Image source={{ uri: photoUri }} style={styles.avatarImg} />
+                  ) : (
+                    <View style={styles.avatarEmpty}>
+                      <Camera size={28} color={colors.textSecondary} strokeWidth={2} />
+        </View>
+                  )}
+                </Pressable>
+                <Text style={styles.avatarCaption}>Add photo (optional)</Text>
+      </View>
               <Text style={styles.fieldLabel}>Full name *</Text>
               <TextInput value={name} onChangeText={setName} style={styles.input} placeholder="Full name" placeholderTextColor={colors.textTertiary} />
               <Text style={styles.fieldLabel}>Age *</Text>
-              <TextInput
+        <TextInput
                 value={age}
                 onChangeText={setAge}
                 keyboardType="number-pad"
-                style={styles.input}
+          style={styles.input}
                 placeholder="Your age"
                 placeholderTextColor={colors.textTertiary}
               />
@@ -351,7 +353,7 @@ export default function OnboardingScreen() {
                 <Text style={styles.tealBtnText}>Continue</Text>
                 <ChevronRight size={20} color={colors.textOnAccent} strokeWidth={2} />
               </Pressable>
-            </View>
+      </View>
           ) : null}
 
           {step === 2 ? (
@@ -359,42 +361,42 @@ export default function OnboardingScreen() {
               <Text style={styles.title}>Emergency contact</Text>
               <Text style={styles.sub}>Who should we notify in emergencies?</Text>
               <Text style={styles.fieldLabel}>Contact name *</Text>
-              <TextInput
+        <TextInput
                 value={emergencyName}
                 onChangeText={setEmergencyName}
-                style={styles.input}
+          style={styles.input}
                 placeholder="Full name"
                 placeholderTextColor={colors.textTertiary}
-              />
+        />
               <Text style={styles.fieldLabel}>Phone * (09XXXXXXXX)</Text>
-              <TextInput
+        <TextInput
                 value={emergencyPhone}
                 onChangeText={setEmergencyPhone}
-                keyboardType="phone-pad"
-                style={styles.input}
+          keyboardType="phone-pad"
+          style={styles.input}
                 placeholder="09XXXXXXXX"
                 placeholderTextColor={colors.textTertiary}
-              />
+        />
               <View style={styles.switchCard}>
-                <View style={styles.switchText}>
+          <View style={styles.switchText}>
                   <Text style={styles.switchTitle}>Allow location for facility finding</Text>
                   <Text style={styles.switchSub}>
                     Rapha uses this to find the nearest hospitals and pharmacies when you ask for care.
                   </Text>
-                </View>
-                <Switch
-                  value={locationConsent}
-                  onValueChange={setLocationConsent}
+          </View>
+          <Switch
+            value={locationConsent}
+            onValueChange={setLocationConsent}
                   trackColor={{ false: colors.border, true: colors.accent }}
                   thumbColor={colors.surface}
-                />
-              </View>
+          />
+        </View>
               <Pressable style={[styles.tealBtn, busy && { opacity: 0.7 }]} onPress={complete} disabled={busy}>
                 <Text style={styles.tealBtnText}>{busy ? 'Saving…' : 'Complete setup'}</Text>
               </Pressable>
-            </View>
+      </View>
           ) : null}
-        </ScrollView>
+    </ScrollView>
 
         <Modal visible={bloodModal} transparent animationType="fade">
           <Pressable style={styles.modalOverlay} onPress={() => setBloodModal(false)}>
@@ -438,7 +440,7 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   title: { ...typography.h2, fontFamily: fonts.bodySemiBold, marginBottom: spacing.xs },
   sub: { ...typography.bodySmall, fontFamily: fonts.body, color: colors.textSecondary, marginBottom: spacing.lg },
-  avatarWrap: { alignSelf: 'center', marginBottom: spacing.lg },
+  avatarBlock: { alignSelf: 'center', alignItems: 'center', marginBottom: spacing.lg },
   avatarImg: { width: 100, height: 100, borderRadius: 50 },
   avatarEmpty: {
     width: 100,
@@ -449,10 +451,15 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
     backgroundColor: colors.surface,
   },
-  avatarHint: { fontSize: 11, fontFamily: fonts.body, color: colors.textTertiary },
+  avatarCaption: {
+    marginTop: spacing.sm,
+    fontSize: 13,
+    fontFamily: fonts.bodyMedium,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
   fieldLabel: { ...typography.label, fontFamily: fonts.bodySemiBold, color: colors.textPrimary, marginBottom: spacing.xs },
   input: {
     borderWidth: 1.5,

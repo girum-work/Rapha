@@ -14,7 +14,7 @@ This is Rapha, an AI-powered mobile health app for Ethiopia built with Expo Reac
 ## Architecture Rules
 - Edge functions: only change supabase/functions when the task explicitly asks for Dr Lucas, triage, OCR, search, or related backend fixes.
 - Do not change src/lib/supabase.ts auth configuration unless the task says to.
-- Route AI chat through supabase.functions.invoke('dr-lucas') from the app client (implemented in src/lib/sessionStore.ts).
+- Route AI chat through supabase.functions.invoke('chat-triage') from the app client (implemented in src/lib/sessionStore.ts).
 - Use useSafeAreaInsets for bottom padding on scroll views and fixed bottom bars; pair with SafeAreaView as needed.
 - Handle loading, error, and empty states on every screen.
 

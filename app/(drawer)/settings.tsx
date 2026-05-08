@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import {
   Bell,
@@ -435,8 +436,22 @@ export default function SettingsScreen() {
               <Switch
                 value={pushPref}
                 onValueChange={(v) => {
-                  setPushPref(v);
-                  void AsyncStorage.setItem(PREF_PUSH, v ? '1' : '0');
+                  void (async () => {
+                    if (v) {
+                      const { status } = await Notifications.requestPermissionsAsync();
+                      if (status !== 'granted') {
+                        Alert.alert(
+                          'Notifications',
+                          'Permission was denied. You can turn on alerts later in system settings.',
+                        );
+                        setPushPref(false);
+                        await AsyncStorage.setItem(PREF_PUSH, '0');
+                        return;
+                      }
+                    }
+                    setPushPref(v);
+                    await AsyncStorage.setItem(PREF_PUSH, v ? '1' : '0');
+                  })();
                 }}
                 trackColor={{ false: colors.border, true: colors.accent }}
                 thumbColor={colors.surface}
@@ -556,10 +571,10 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1, backgroundColor: colors.canvas },
   scroll: { paddingBottom: spacing.xxl },
   hero: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surfaceDark,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     padding: 24,
@@ -570,14 +585,14 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.surfaceDarkElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarLetter: { fontSize: 22, fontWeight: '700', color: colors.textOnAccent },
+  avatarLetter: { fontSize: 22, fontWeight: '600', color: colors.onDark },
   userText: { flex: 1 },
-  userName: { fontSize: 18, fontWeight: '700', color: colors.surface },
-  userEmail: { fontSize: 13, color: colors.textTertiary, marginTop: 4 },
+  userName: { fontSize: 18, fontWeight: '600', color: colors.onDark },
+  userEmail: { fontSize: 13, color: colors.onDarkSoft, marginTop: 4 },
   editProfileBtn: {
     marginTop: 16,
     alignSelf: 'flex-start',
@@ -588,8 +603,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
-  editProfileText: { fontSize: 13, color: colors.surface, fontWeight: '600' },
-  saved: { marginTop: 8, fontSize: 13, color: colors.accent },
+  editProfileText: { fontSize: 13, color: colors.onDark, fontWeight: '500' },
+  saved: { marginTop: 8, fontSize: 13, color: colors.accentTeal },
   section: { paddingHorizontal: spacing.md, marginBottom: spacing.lg },
   sectionHead: {
     flexDirection: 'row',
@@ -656,7 +671,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: colors.dangerSoft,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',

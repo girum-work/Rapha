@@ -1,36 +1,29 @@
 # Current step
 
-**As of:** 2026-05-04
+**As of:** 2026-05-05
 
-## Status: Part 4 complete (UI rebuild final)
+## Status: Part 1 complete (theme + home chat + drawer)
 
-Parts 1–4 of the Rapha UI rebuild are implemented in-repo.
+### Delivered in this step
 
-### Part 4 delivered
+1. **Theme tokens (`src/theme.ts`)**
+   - Applied requested Part 1 palette (`#0A1628`, `#00C2A8`, `#F8FAFC`, etc.).
+2. **Home chat (`app/(drawer)/index.tsx`)**
+   - Header now matches Part 1 shape (left title/subtitle, right camera + overflow).
+   - Composer switched back to attach/input/send row with safe bottom padding.
+   - Restored static disclaimer above input.
+   - Existing session + triage wiring preserved.
+3. **Drawer (`app/(drawer)/_layout.tsx`)**
+   - Removed bottom-tab overlay that was covering the chatbox.
+   - Rebuilt navy drawer content with active states and footer badge.
+   - Drawer navigation remains the primary container.
 
-1. **`supabase/functions/dr-lucas`** — Proxies authenticated requests to **`chat-triage`**.
-2. **`supabase/functions/chat-triage`** — Single **2s** retry before mock fallback when Groq streaming fails.
-3. **`src/lib/sessionStore.ts`** — **`invoke('dr-lucas')`**, connection fallback + **`connectionFallback`** on messages.
-4. **`app/sign-in.tsx`**, **`app/sign-up.tsx`**, **`app/verify-otp.tsx`**, **`app/onboarding.tsx`** — Auth and 3-step onboarding per spec.
-5. **`app/_layout.tsx`** — **`verify-otp`** route, public auth gating, **`ToastProvider`**, **`ScreenErrorBoundary`**.
-6. **`src/context/ToastContext.tsx`**, **`src/components/Skeleton.tsx`**, **`src/components/ScreenErrorBoundary.tsx`** — Global polish.
-7. **Safe area** — Chat, dashboard, history, learn, services bottom padding via **`useSafeAreaInsets`**.
-8. **`.cursorrules`** — Project rules for Cursor agents.
+### Validation
 
-### Quality
+- `npm run typecheck` passes.
+- Dev server started with clean cache in tunnel mode on port `8085`:
+  - `npx expo start --tunnel --clear --port 8085`
 
-- **`npm run typecheck`** — passes (0 errors).
+### Next
 
-### Deploy / ops (manual)
-
-- Deploy **`dr-lucas`** (and updated **`chat-triage`**) to Supabase: e.g. **`supabase functions deploy dr-lucas`** / **`chat-triage`** with project linked.
-- Confirm **`GROQ_API_KEY`** is set in Supabase secrets for live Dr Lucas replies.
-
-### Remaining / follow-up (not blocking merge)
-
-- Optional: persist onboarding profile photo to storage + **`profiles`** when a column and policy exist.
-- Device QA: keyboard vs composer on low Android devices; full pass on Expo Go tunnel per checklist in Part 4 prompt.
-
-### Earlier reference
-
-- Parts 1–3: theme, drawer, chat, dashboard, history, settings, learn, accessories, services — see **`docs/decisions.md`**.
+- Proceed to Part 2 prompt.

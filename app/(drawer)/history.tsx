@@ -22,6 +22,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Skeleton } from '../../src/components/Skeleton';
+import { formatRelative } from '../../src/lib/dateUtils';
 import { hasSupabaseConfig, supabase } from '../../src/lib/supabase';
 import { colors, radius, spacing, typography } from '../../src/theme';
 
@@ -82,23 +83,6 @@ function groupSessions(sessions: ChatSessionRow[]) {
     else grouped.earlier.push(s);
   }
   return grouped;
-}
-
-function formatRelative(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const yStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
-  const t = d.getTime();
-  if (t >= dayStart) return 'Today';
-  if (t >= yStart) return 'Yesterday';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function firstUserLine(messages: ChatMsg[] | undefined): string {
@@ -329,11 +313,17 @@ function SessionRowItem({
           )}
           <View style={styles.threadActions}>
             {showResume ? (
-              <Pressable style={styles.resumeBtn} onPress={() => router.push('/(drawer)/')}>
+              <Pressable
+                style={styles.resumeBtn}
+                onPress={() => router.push({ pathname: '/(drawer)/', params: { openSession: session.id } })}
+              >
                 <Text style={styles.resumeText}>Resume →</Text>
               </Pressable>
             ) : null}
-            <Pressable style={styles.viewBtn} onPress={() => router.push('/(drawer)/')}>
+            <Pressable
+              style={styles.viewBtn}
+              onPress={() => router.push({ pathname: '/(drawer)/', params: { openSession: session.id } })}
+            >
               <Text style={styles.viewText}>View full</Text>
             </Pressable>
           </View>
@@ -413,7 +403,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#0F172A',
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,

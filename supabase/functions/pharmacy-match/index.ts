@@ -16,9 +16,12 @@ serve(async (req: Request) => {
       .filter(Boolean);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseAnon = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, supabaseAnon, {
-      global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (!supabaseUrl || !serviceKey) {
+      return jsonResponse({ error: 'Server misconfigured', matches: [], pharmacies: [] }, 500);
+    }
+    const supabase = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
 
     const { data, error } = await supabase.from('pharmacy_stock').select('*, pharmacies(*)');

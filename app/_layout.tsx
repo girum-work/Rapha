@@ -4,7 +4,12 @@ import {
   CormorantGaramond_400Regular,
   CormorantGaramond_500Medium,
 } from '@expo-google-fonts/cormorant-garamond';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import * as Notifications from 'expo-notifications';
 import type { Href } from 'expo-router';
@@ -103,6 +108,7 @@ export default function RootLayout() {
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
+    Inter_700Bold,
   });
   const fontsReady = fontsLoaded || fontError != null;
   const serifReady = fontsLoaded && fontError == null;
@@ -216,6 +222,12 @@ export default function RootLayout() {
 
     if (hasProfile && (inPublicAuth || first === 'onboarding')) {
       router.replace('/(drawer)/dashboard');
+      return;
+    }
+
+    // Keep patient app on drawer navigation for now.
+    if (hasProfile && first === '(ambulance)') {
+      router.replace('/(drawer)/dashboard');
     }
   }, [bootstrapDone, fontsReady, navigationState?.key, router, segments, session, hasProfile]);
 
@@ -226,11 +238,12 @@ export default function RootLayout() {
       <ScreenErrorBoundary>
         <>
           <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="sign-in" />
-            <Stack.Screen name="sign-up" />
-            <Stack.Screen name="verify-otp" />
-            <Stack.Screen name="onboarding" />
-            <Stack.Screen name="(drawer)" />
+            <Stack.Screen name="sign-in" options={{ animation: 'fade' }} />
+            <Stack.Screen name="sign-up" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="verify-otp" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="onboarding" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="(drawer)" options={{ animation: 'none' }} />
+            <Stack.Screen name="(ambulance)" options={{ animation: 'fade' }} />
           </Stack>
 
           <DrawerNotificationBridge />

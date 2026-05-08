@@ -104,7 +104,7 @@ OpenRouter/DeepSeek and Anthropic Claude are **not** used here.
 - **Header:** In-screen only (drawer **`headerShown: false`** on this route); overflow opens drawer via **`DrawerActions.openDrawer()`**; camera control present as UI placeholder (no behavior wired in Part 1).
 - **List:** `FlatList` not inverted; **`contentContainerStyle`** includes **`paddingBottom: 16`**; scroll-to-end on new messages / typing footer.
 - **Triage cards:** Shown only when latest structured **`action !== 'ask_more'`** and not while **`sending`**; hidden as soon as the user sends the next message (`lastStructured` cleared until the new reply returns). Cards branch on **`emergency`**, **`hospital` / `clinic`**, **`pharmacy`**, **`first_aid`**, **`self_care`** with the Part 1 visual spec (confidence bar = three segments filled to **`confidence`**; condition copy uses **`conditions[0]`** with **`rationale`** as the secondary line). **`Linking.openURL('tel:911')`** on “Call emergency contact” (placeholder number; localize later).
-- **Wiring (updated Part 4):** **`sendChatMessage`** calls **`supabase.functions.invoke('dr-lucas', …)`**; the **`dr-lucas`** edge function forwards the same body to **`chat-triage`** so Groq logic stays in one place. On invoke/parse failure the client shows a neutral retry message (not mock clinical triage) and flags **`connectionFallback`** on the assistant message.
+- **Wiring (updated audit 2026-05-04):** **`sendChatMessage`** calls **`supabase.functions.invoke('chat-triage', …)`** directly (no proxy). On invoke/parse failure the client shows a neutral retry message (not mock clinical triage) and flags **`connectionFallback`** on the assistant message. Each exchange **`upsert`s `chat_sessions`** and **`insert`s two `chat_messages`** rows when the user is signed in and the session id is a UUID.
 
 ### Drawer (`app/(drawer)/_layout.tsx`)
 
@@ -195,8 +195,7 @@ OpenRouter/DeepSeek and Anthropic Claude are **not** used here.
 ### AI provider and resilience
 
 - **Groq** remains the model path inside **`supabase/functions/chat-triage`** (see Step 5). **`GROQ_API_KEY`** must be set on the Supabase project for live replies; if missing or the upstream call fails, the function still returns deterministic structured fallback after **one automatic retry** (2s delay) on streaming failure.
-- **`supabase/functions/dr-lucas`**: thin HTTP proxy that re-posts the client body to **`/functions/v1/chat-triage`** with the caller’s **`Authorization`** header so the app only **`invoke`s `dr-lucas`**. Deploy with **`supabase functions deploy dr-lucas`** (and **`chat-triage`** when changed).
-- **Client (`src/lib/sessionStore.ts`)**: builds **`messages: { role, content }[]`** from the local transcript, passes **`message`**, **`sessionId`**, invokes **`dr-lucas`**. On error or malformed JSON, uses **`triageConnectionFallback()`** (neutral retry copy + **`connectionError`**), not **`makeMockTriage`**.
+- **Client (`src/lib/sessionStore.ts`)**: invokes **`chat-triage`** with **`message`**, **`session_id`**, and **`messages`**. Persists the active session to **`AsyncStorage`** and mirrors each user/assistant pair to **`chat_sessions` / `chat_messages`** when authenticated. On error or malformed JSON, uses **`triageConnectionFallback()`** (neutral retry copy + **`connectionError`**), not **`makeMockTriage`**.
 
 ### Auth UI and flow
 
@@ -221,4 +220,65 @@ OpenRouter/DeepSeek and Anthropic Claude are **not** used here.
 
 ### Cursor rules
 
-- **`.cursorrules`** at repo root encodes identity, design tokens, architecture (including **`dr-lucas`** invoke), file layout, user-visible copy rules, and typecheck expectations.
+- **`.cursorrules`** at repo root encodes identity, design tokens, architecture (including **`chat-triage`** invoke), file layout, user-visible copy rules, and typecheck expectations.
+
+---
+
+## 2026-05-05 — Typography, auth polish, animation / wearables scaffolds, packages
+
+### Typography (`src/theme.ts`, `app/_layout.tsx`)
+
+- **Inter** loads **`Inter_700Bold`**; sans tokens: **`fonts.body`** = **`Inter_500Medium`** (default reading weight), **`fonts.bodyRegular`** = **`Inter_400Regular`** (fine print where needed), **`fonts.bodyBold`** = **`Inter_700Bold`**.
+- **`typography`** headings and auth tokens use **`500`/`600`** instead of **`400`** so combined with font families copy reads heavier.
+
+### Sign-up (`app/sign-up.tsx`)
+
+- Removed **“or” divider** and **“Sign in instead”** from create-account so onboarding is signup-only there; **`sign-in`** still links to signup as needed.
+
+### Onboarding photo (`app/onboarding.tsx`)
+
+- **“Add photo (optional)”** sits **below** the dashed avatar circle (icon-only inside circle) so text is not cramped or mis-centered in the circle.
+
+### Animation scaffold (`src/lib/animations.ts`)
+
+- Shared **`react-native-reanimated`** helpers: **`timings`**, **`useFadeIn`**, **`usePressAnimation`**, **`usePulseGlow`**, **`useSlideUp`** (uses **`withDelay`** for fade delay; no `setTimeout` in product paths).
+
+### Wearables scaffold (`src/lib/wearables.ts`)
+
+- **`getLatestVitals`**, **`isWearableConnected`** return **`null` / false** until HealthKit / Health Connect is wired in a dev client.
+
+### Packages
+
+- **`lottie-react-native`** (Expo-aligned) and **`@shopify/react-native-skia`** added for planned Lottie / Skia UI work. **`babel.config.js`** already lists **`react-native-reanimated/plugin`**. Many other libs from the polish prompt (**`expo-blur`**, **`expo-linear-gradient`**, **`react-native-tab-view`**, **`react-native-pager-view`**, **`react-native-svg`**, Reanimated, Gesture Handler) were already present.
+
+### Deferred from “production polish” mega-prompt
+
+- **Bottom tab bar replacing the drawer**, full **dark ChatGPT-style** chat shell (**`#0A0F1C`**), **TabView** scene transitions, **focus glow** on composer, and **drawer only for History/Settings** — not migrated in this pass (large navigation + screen rewrite; **patient app remains `(drawer)`**).
+- **Ambulance side**: **`app/(ambulance)/*`**, service key on **sign-in**, and related Supabase tables already exist in-repo; full spec (OSRM polyline, richer duty flow, push overlays) can extend incrementally.
+- **Stack `animation: 'fade_from_bottom'`** globally was not applied to avoid surprising transitions on every screen; can be tuned per-route later.
+
+---
+
+## 2026-05-05 — Part 1 UI rebuild (theme + home chat + drawer)
+
+### Theme tokens (`src/theme.ts`)
+
+- Restored the product palette to the requested Part 1 baseline:
+  - `primary` `#0A1628`, `primaryMid` `#1B3A6B`
+  - `accent` `#00C2A8` + matching light/dark variants
+  - `background` `#F8FAFC`, `surface` `#FFFFFF`, subtle slate borders/text
+- Kept legacy alias keys for backwards compatibility with unchanged screens.
+
+### Drawer (`app/(drawer)/_layout.tsx`)
+
+- Removed the overlaid bottom tab bar implementation that was blocking chat input access.
+- Rebuilt custom drawer content (navy background, profile block, divider, active route highlight, footer badge).
+- Kept drawer routing and screen registration intact; `drawerType: 'slide'`.
+- Nav labels use the requested emoji suffixes for the listed sections.
+
+### Home chat (`app/(drawer)/index.tsx`)
+
+- Header now follows Part 1 structure: left title + subtitle, right camera + overflow actions.
+- Composer row reverted to classic attach/input/send layout with safe bottom padding (`34` iOS / `16` Android).
+- Restored static centered disclaimer line above composer.
+- Kept existing chat/session/triage wiring logic (no backend flow changes).

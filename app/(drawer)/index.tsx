@@ -1,16 +1,20 @@
 import { DrawerActions } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications';
 import { ArrowUp, Camera, MoreHorizontal, Paperclip, Stethoscope } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   KeyboardAvoidingView,
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -18,8 +22,15 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { dbgIngestLog } from '../../src/lib/debugIngest';
 import { hasSupabaseConfig, supabase } from '../../src/lib/supabase';
-import { completeSession, deferSession, getOrCreateSession, sendChatMessage } from '../../src/lib/sessionStore';
+import {
+  completeSession,
+  deferSession,
+  getOrCreateSession,
+  hydrateSessionFromRemote,
+  sendChatMessage,
+} from '../../src/lib/sessionStore';
 import { colors, radius, spacing, typography } from '../../src/theme';
 import { ChatMessage, ChatSession, TriageResponse } from '../../src/types';
 
@@ -38,19 +49,22 @@ function greetingPrefix() {
 
 function ConfidenceBar({ confidence }: { confidence: number }) {
   const pct = Math.max(0, Math.min(1, confidence));
-  const filled = pct * 3;
+  const pctLabel = Math.round(pct * 100);
   return (
-    <View style={styles.confidenceTrack}>
-      {[0, 1, 2].map((i) => {
-        const segmentFill = Math.max(0, Math.min(1, filled - i));
-        return (
-          <View key={i} style={styles.confidenceSlot}>
-            <View style={[styles.confidenceFill, { width: `${segmentFill * 100}%` }]} />
-          </View>
-        );
-      })}
+    <View style={styles.confidenceWrap}>
+      <View style={styles.confidenceTrackSingle}>
+        <View style={[styles.confidenceFillSingle, { width: `${pct * 100}%` }]} />
+      </View>
+      <Text style={styles.confidencePct}>{pctLabel}% confidence</Text>
     </View>
   );
+}
+
+function normalizeTriageOneCondition(s: TriageResponse): TriageResponse {
+  if (!s.conditions?.length) return s;
+  if (s.conditions.length === 1) return s;
+  const top = [...s.conditions].sort((a, b) => b.confidence - a.confidence)[0]!;
+  return { ...s, conditions: [top] };
 }
 
 function TypingBubble() {
@@ -130,7 +144,7 @@ function TriageCards({
         <View style={styles.actionGapSm} />
         <Pressable
           style={styles.btnEmergencyOutline}
-          onPress={() => void Linking.openURL('tel:911')}
+          onPress={() => void Linking.openURL('tel:907')}
         >
           <Text style={styles.btnEmergencyOutlineText}>Call emergency contact</Text>
         </Pressable>
@@ -193,10 +207,15 @@ function TriageCards({
   }
 
   if (structured.action === 'first_aid') {
-    const steps =
+    const primary =
       structured.conditions.length > 0
-        ? structured.conditions.map((c, i) => ({ n: i + 1, title: c.name, detail: c.rationale }))
-        : structured.red_flags.map((t, i) => ({ n: i + 1, title: t, detail: '' }));
+        ? [...structured.conditions].sort((a, b) => b.confidence - a.confidence)[0]!
+        : null;
+    const steps = primary
+      ? [{ n: 1, title: primary.name, detail: primary.rationale }]
+      : structured.red_flags.length > 0
+        ? [{ n: 1, title: structured.red_flags[0]!, detail: '' }]
+        : [{ n: 1, title: 'General care', detail: 'Follow safe rest and hydration guidance.' }];
     return (
       <View style={[styles.actionCard, styles.actionCardInfo]}>
         <Text style={styles.actionTitleInfo}>🩹 First aid</Text>
@@ -239,10 +258,47 @@ function TriageCards({
   return null;
 }
 
+function PinnedTriageBanner({
+  structured,
+  onOpenServices,
+}: {
+  structured: TriageResponse;
+  onOpenServices: () => void;
+}) {
+  const c0 = structured.conditions[0];
+  const label =
+    structured.action === 'emergency'
+      ? 'Emergency'
+      : structured.action === 'hospital'
+        ? 'Hospital'
+        : structured.action === 'clinic'
+          ? 'Clinic'
+          : structured.action === 'pharmacy'
+            ? 'Pharmacy'
+            : structured.action === 'first_aid'
+              ? 'First aid'
+              : structured.action === 'self_care'
+                ? 'Self care'
+                : 'Care';
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onOpenServices}
+      style={({ pressed }) => [styles.pinnedBar, pressed && styles.pinnedBarPressed]}
+    >
+      <Text style={styles.pinnedBarTitle}>Pinned · {label}</Text>
+      <Text style={styles.pinnedBarSub} numberOfLines={1}>
+        {c0?.name ?? 'Your triage result'}
+      </Text>
+      <Text style={styles.pinnedBarHint}>Tap for Care Options</Text>
+    </Pressable>
+  );
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { prefill } = useLocalSearchParams<{ prefill?: string }>();
+  const { prefill, openSession } = useLocalSearchParams<{ prefill?: string; openSession?: string }>();
   const navigation = useNavigation();
   const [session, setSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -250,6 +306,8 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [lastStructured, setLastStructured] = useState<TriageResponse | null>(null);
+  const [pinnedStructured, setPinnedStructured] = useState<TriageResponse | null>(null);
+  const [pendingDisclaimerMsgId, setPendingDisclaimerMsgId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
@@ -264,9 +322,37 @@ export default function HomeScreen() {
         setMessages(nextMessages);
         const structured = [...nextMessages].reverse().find((message) => message.structuredResponse)?.structuredResponse;
         setLastStructured(structured ?? null);
+        const lastM = nextMessages[nextMessages.length - 1];
+        setPendingDisclaimerMsgId(lastM?.role === 'assistant' ? lastM.id : null);
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (typeof openSession !== 'string' || !openSession.trim()) return;
+    const sid = openSession.trim();
+    let cancelled = false;
+    void (async () => {
+      const ok = await hydrateSessionFromRemote(sid);
+      if (cancelled) return;
+      if (!ok) {
+        router.replace('/(drawer)/');
+        return;
+      }
+      const { session: nextSession, messages: nextMessages } = await getOrCreateSession();
+      if (cancelled) return;
+      setSession(nextSession);
+      setMessages(nextMessages);
+      const structured = [...nextMessages].reverse().find((message) => message.structuredResponse)?.structuredResponse;
+      setLastStructured(structured ?? null);
+      const lastM = nextMessages[nextMessages.length - 1];
+      setPendingDisclaimerMsgId(lastM?.role === 'assistant' ? lastM.id : null);
+      router.replace('/(drawer)/');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [openSession, router]);
 
   useEffect(() => {
     scrollToEnd();
@@ -299,43 +385,179 @@ export default function HomeScreen() {
     }
   }, [prefill]);
 
-  const showTriageCard = lastStructured !== null && lastStructured.action !== 'ask_more' && !sending;
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      void Notifications.setNotificationChannelAsync('default', {
+        name: 'Reminders',
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    }
+  }, []);
 
-  async function handleSend() {
-    if (!session || !input.trim()) return;
-    const text = input.trim();
+  const displayLastStructured = lastStructured ? normalizeTriageOneCondition(lastStructured) : null;
+  const displayPinnedStructured = pinnedStructured ? normalizeTriageOneCondition(pinnedStructured) : null;
+
+  const showTriageCard =
+    displayLastStructured !== null && displayLastStructured.action !== 'ask_more' && !sending;
+
+  const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+  const showAskMoreChips =
+    !sending &&
+    lastMsg?.role === 'assistant' &&
+    lastMsg.structuredResponse?.action === 'ask_more';
+  const askMoreOptions =
+    lastMsg?.structuredResponse?.question_options?.filter((o) => o?.trim())?.length
+      ? (lastMsg.structuredResponse!.question_options as string[])
+      : ['Yes', 'No', 'Not sure', 'More detail'];
+
+  async function sendUserText(text: string) {
+    const trimmed = text.trim();
+    if (!session || !trimmed) return;
     if (__DEV__) {
       // eslint-disable-next-line no-console
-      console.log('[DEBUG] Calling dr-lucas with:', {
-        message: text,
+      console.log('[DEBUG] Calling chat-triage with:', {
+        message: trimmed,
         sessionId: session.id,
         messageCount: messages.length,
       });
     }
+    if (lastStructured && lastStructured.action !== 'ask_more') {
+      setPinnedStructured(lastStructured);
+    }
+    setPendingDisclaimerMsgId(null);
     setLastStructured(null);
     setSending(true);
     setInput('');
-    const result = await sendChatMessage(session, messages, text);
+    const result = await sendChatMessage(session, messages, trimmed);
     if (__DEV__) {
-      const last = result.messages[result.messages.length - 1];
+      const lastDebug = result.messages[result.messages.length - 1];
       // eslint-disable-next-line no-console
-      console.log('[DEBUG] dr-lucas done', { connectionFallback: last?.connectionFallback });
+      console.log('[DEBUG] chat-triage done', { connectionFallback: lastDebug?.connectionFallback });
     }
     setSession(result.session);
     setMessages(result.messages);
     setLastStructured(result.structured);
     const last = result.messages[result.messages.length - 1];
+    if (last?.role === 'assistant' && !last.connectionFallback) {
+      setPendingDisclaimerMsgId(last.id);
+    }
     if (last?.connectionFallback) {
-      setInput(text);
+      setInput(trimmed);
     }
     setSending(false);
     scrollToEnd();
   }
 
+  async function handleSend() {
+    if (!session || !input.trim()) return;
+    await sendUserText(input);
+  }
+
   async function handleDefer() {
-    if (!session) return;
-    const updated = await deferSession(session);
-    setSession(updated);
+    // #region agent log
+    fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
+      body: JSON.stringify({
+        sessionId: 'd90aac',
+        location: 'index.tsx:handleDefer:entry',
+        message: 'Remind pressed',
+        data: { hasSession: !!session },
+        timestamp: Date.now(),
+        hypothesisId: 'H1',
+        runId: 'pre-fix',
+      }),
+    }).catch(() => {});
+    // #endregion
+    if (!session) {
+      // #region agent log
+      fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
+        body: JSON.stringify({
+          sessionId: 'd90aac',
+          location: 'index.tsx:handleDefer:no-session',
+          message: 'defer aborted — no session',
+          data: {},
+          timestamp: Date.now(),
+          hypothesisId: 'H2',
+          runId: 'pre-fix',
+        }),
+      }).catch(() => {});
+      // #endregion
+      return;
+    }
+    try {
+      const existing = await Notifications.getPermissionsAsync();
+      let granted = existing.status === 'granted';
+      if (!granted) {
+        const req = await Notifications.requestPermissionsAsync();
+        granted = req.status === 'granted';
+      }
+      // #region agent log
+      fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
+        body: JSON.stringify({
+          sessionId: 'd90aac',
+          location: 'index.tsx:handleDefer:perm',
+          message: 'notification permission',
+          data: { granted },
+          timestamp: Date.now(),
+          hypothesisId: 'H3',
+          runId: 'pre-fix',
+        }),
+      }).catch(() => {});
+      // #endregion
+      if (!granted) {
+        Alert.alert('Notifications', 'Allow notifications in Settings so Rapha can remind you.');
+      }
+      const notifId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Rapha',
+          body: 'Rapha will remind you to visit the clinic/hospital in 6 hours.',
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: 6 * 60 * 60,
+          repeats: false,
+        },
+      });
+      // #region agent log
+      fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
+        body: JSON.stringify({
+          sessionId: 'd90aac',
+          location: 'index.tsx:handleDefer:scheduled',
+          message: 'scheduled local notification',
+          data: { notifId },
+          timestamp: Date.now(),
+          hypothesisId: 'H4',
+          runId: 'pre-fix',
+        }),
+      }).catch(() => {});
+      // #endregion
+      const updated = await deferSession(session);
+      setSession(updated);
+    } catch (e) {
+      // #region agent log
+      fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
+        body: JSON.stringify({
+          sessionId: 'd90aac',
+          location: 'index.tsx:handleDefer:error',
+          message: 'defer failed',
+          data: { err: e instanceof Error ? e.message : String(e) },
+          timestamp: Date.now(),
+          hypothesisId: 'H5',
+          runId: 'pre-fix',
+        }),
+      }).catch(() => {});
+      // #endregion
+      Alert.alert('Reminder', 'Could not schedule the reminder. Try again.');
+    }
   }
 
   async function handleComplete() {
@@ -343,11 +565,74 @@ export default function HomeScreen() {
     const updated = await completeSession(session);
     setSession(updated);
     setLastStructured(null);
+    setPinnedStructured(null);
   }
 
   const onNavigateServices = useCallback(
     (action: string) => {
       router.push({ pathname: '/services', params: { action } });
+    },
+    [router],
+  );
+
+  const runImageFlow = useCallback(
+    async (source: 'camera' | 'library') => {
+      if (!hasSupabaseConfig || !supabase) {
+        Alert.alert('Unavailable', 'Sign in and configure the app to scan prescriptions.');
+        return;
+      }
+      const perm =
+        source === 'camera'
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow camera or photo library access to scan a prescription.');
+        return;
+      }
+      const launch = source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
+      const result = await launch({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        base64: true,
+        quality: 0.65,
+      });
+      if (result.canceled || !result.assets[0]?.base64) return;
+      const b64 = result.assets[0].base64;
+      // #region agent log
+      dbgIngestLog({
+        hypothesisId: 'H3',
+        location: 'index.tsx:runImageFlow',
+        message: 'prescription-ocr invoke',
+        data: { b64Len: b64.length },
+      });
+      // #endregion
+      const { data, error } = await supabase.functions.invoke('prescription-ocr', {
+        body: { image_base64: b64 },
+      });
+      const meds = (data as { extracted_medications?: { drug_name: string }[] } | null)?.extracted_medications ?? [];
+      const names = meds.map((m) => m.drug_name).filter(Boolean);
+      // #region agent log
+      dbgIngestLog({
+        hypothesisId: 'H3',
+        location: 'index.tsx:runImageFlow:after',
+        message: error ? 'ocr error' : 'ocr response',
+        data: { err: error?.message ?? null, medCount: names.length },
+      });
+      // #endregion
+      if (error) {
+        Alert.alert('Prescription scan', 'Could not read this image. Try a clearer photo.');
+        return;
+      }
+      Alert.alert(
+        'Prescription scan',
+        names.length > 0 ? `Possible medications: ${names.join(', ')}.` : 'No medications were detected from this image.',
+        [
+          {
+            text: 'Find pharmacies',
+            onPress: () => router.push({ pathname: '/services', params: { action: 'pharmacy' } }),
+          },
+          { text: 'OK', style: 'cancel' },
+        ],
+      );
     },
     [router],
   );
@@ -389,10 +674,10 @@ export default function HomeScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        keyboardVerticalOffset={insets.top}
       >
         <View style={styles.headerBar}>
-          <View>
+          <View style={styles.headerTitleWrap}>
             <Text style={styles.headerTitle}>Dr Lucas</Text>
             <Text style={styles.headerSubtitle}>AI Health Assistant</Text>
           </View>
@@ -400,16 +685,17 @@ export default function HomeScreen() {
             <Pressable
               accessibilityRole="button"
               hitSlop={12}
-              onPress={() => undefined}
-              style={styles.headerIconBtn}
+              onPress={() => void runImageFlow('camera')}
+              style={styles.headerSideBtn}
             >
               <Camera size={22} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Open menu"
               hitSlop={12}
               onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-              style={styles.headerIconBtn}
+              style={styles.headerSideBtn}
             >
               <MoreHorizontal size={22} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
@@ -421,27 +707,79 @@ export default function HomeScreen() {
           style={styles.list}
           data={messages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + spacing.md }]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: spacing.sm }]}
           ListEmptyComponent={messages.length === 0 && !sending ? emptyState : null}
+          ListHeaderComponent={
+            displayPinnedStructured ? (
+              <PinnedTriageBanner
+                structured={displayPinnedStructured}
+                onOpenServices={() => {
+                  const c0 = displayPinnedStructured.conditions[0];
+                  const act =
+                    displayPinnedStructured.action === 'emergency'
+                      ? 'emergency'
+                      : displayPinnedStructured.action === 'hospital'
+                        ? 'hospital'
+                        : displayPinnedStructured.action === 'clinic'
+                          ? 'clinic'
+                          : displayPinnedStructured.action === 'pharmacy'
+                            ? 'pharmacy'
+                            : 'default';
+                  router.push({
+                    pathname: '/services',
+                    params: { action: act, conditionName: c0?.name ?? '' },
+                  });
+                }}
+              />
+            ) : null
+          }
           ListFooterComponent={sending ? <TypingBubble /> : null}
-          renderItem={({ item }) => <MessageRow message={item} connectionFallback={item.connectionFallback === true} />}
+          renderItem={({ item }) => (
+            <MessageRow
+              message={item}
+              connectionFallback={item.connectionFallback === true}
+              showDisclaimer={pendingDisclaimerMsgId === item.id && item.role === 'assistant'}
+            />
+          )}
           onContentSizeChange={scrollToEnd}
         />
 
-        {showTriageCard && lastStructured ? (
+        {showTriageCard && displayLastStructured ? (
           <TriageCards
-            structured={lastStructured}
+            structured={displayLastStructured}
             onDefer={handleDefer}
             onComplete={handleComplete}
             onNavigateServices={onNavigateServices}
           />
         ) : null}
 
-        <Text style={styles.disclaimer}>Rapha helps you find care but does not replace a doctor</Text>
+        {showAskMoreChips ? (
+          <View style={styles.mcqWrap}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.mcqScroll}
+            >
+              {askMoreOptions.map((opt) => (
+                <Pressable key={opt} style={styles.mcqChip} onPress={() => void sendUserText(opt)}>
+                  <Text style={styles.mcqChipText}>{opt}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
-        <View style={[styles.composerOuter, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <Text style={styles.disclaimer}>Rapha assists but does not replace a doctor</Text>
+
+        <View style={[styles.composerOuter, { paddingBottom: Platform.OS === 'ios' ? 34 : 16 }]}>
           <View style={styles.composerRow}>
-            <Pressable style={styles.attachBtn} onPress={() => undefined}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Attach"
+              hitSlop={8}
+              style={styles.attachBtn}
+              onPress={() => void runImageFlow('library')}
+            >
               <Paperclip size={18} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
             <TextInput
@@ -452,7 +790,7 @@ export default function HomeScreen() {
               placeholderTextColor={colors.textTertiary}
               multiline
               maxLength={4000}
-              textAlignVertical="top"
+              textAlignVertical="center"
             />
             <Pressable
               accessibilityRole="button"
@@ -473,7 +811,15 @@ export default function HomeScreen() {
   );
 }
 
-function MessageRow({ message, connectionFallback }: { message: ChatMessage; connectionFallback: boolean }) {
+function MessageRow({
+  message,
+  connectionFallback,
+  showDisclaimer,
+}: {
+  message: ChatMessage;
+  connectionFallback: boolean;
+  showDisclaimer?: boolean;
+}) {
   const isUser = message.role === 'user';
   if (isUser) {
     return (
@@ -494,6 +840,11 @@ function MessageRow({ message, connectionFallback }: { message: ChatMessage; con
           <Text style={[styles.assistantBubbleText, connectionFallback && styles.assistantBubbleTextRetry]}>
             {message.content}
           </Text>
+          {showDisclaimer ? (
+            <Text style={styles.bubbleDisclaimer}>
+              Rapha helps you find care but does not replace a doctor.
+            </Text>
+          ) : null}
         </View>
       </View>
     </View>
@@ -517,24 +868,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
     backgroundColor: colors.background,
   },
+  headerTitleWrap: { flex: 1 },
   headerTitle: {
     ...typography.h3,
     fontSize: 20,
   },
   headerSubtitle: {
-    fontSize: 13,
+    ...typography.bodySmall,
     color: colors.textTertiary,
     marginTop: 2,
   },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  headerIconBtn: {
-    width: 40,
-    height: 40,
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
+  headerSideBtn: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  disclaimer: {
+    ...typography.caption,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    color: colors.textTertiary,
   },
   list: { flex: 1 },
   listContent: {
@@ -623,7 +982,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    shadowColor: '#0F172A',
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -660,17 +1019,50 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.textTertiary,
   },
-  disclaimer: {
-    ...typography.caption,
-    textAlign: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
+  bubbleDisclaimer: {
+    fontSize: 10,
+    lineHeight: 14,
     color: colors.textTertiary,
+    marginTop: spacing.sm,
   },
+  pinnedBar: {
+    backgroundColor: colors.mildLight,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.mild,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  pinnedBarPressed: { opacity: 0.9 },
+  pinnedBarTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.mild,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  pinnedBarSub: { ...typography.body, marginTop: 2, fontWeight: '600' },
+  pinnedBarHint: { ...typography.caption, marginTop: 4, color: colors.textSecondary },
+  mcqWrap: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  mcqScroll: { gap: spacing.sm, paddingVertical: 2 },
+  mcqChip: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginRight: spacing.sm,
+  },
+  mcqChipText: { ...typography.bodySmall, color: colors.textPrimary },
   composerOuter: {
     backgroundColor: colors.background,
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.xs,
   },
   composerRow: {
     flexDirection: 'row',
@@ -775,24 +1167,22 @@ const styles = StyleSheet.create({
   actionGap: { height: spacing.sm },
   actionGapSm: { height: spacing.sm },
   actionGapLg: { height: spacing.md },
-  confidenceTrack: {
-    flexDirection: 'row',
-    gap: 4,
+  confidenceWrap: { gap: 6 },
+  confidenceTrackSingle: {
     height: 8,
-  },
-  confidenceSlot: {
-    flex: 1,
-    height: 8,
-    backgroundColor: colors.border,
     borderRadius: 4,
+    backgroundColor: colors.border,
     overflow: 'hidden',
-    flexDirection: 'row',
-    alignItems: 'stretch',
   },
-  confidenceFill: {
+  confidenceFillSingle: {
     height: '100%',
     backgroundColor: colors.accent,
     borderRadius: 4,
+  },
+  confidencePct: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   btnEmergencyFill: {
     backgroundColor: colors.emergency,

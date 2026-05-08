@@ -1,10 +1,13 @@
 import { useLocalSearchParams } from 'expo-router';
+import * as Location from 'expo-location';
 import { Ambulance, Car, ChevronRight, MapPin, Navigation, Paperclip, Phone, User } from 'lucide-react-native';
 import type { ReactNode } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -12,18 +15,30 @@ import {
   Text,
   View,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, UrlTile } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ADDIS_CENTER, facilities } from '../../src/data/facilities';
+import { ADDIS_CENTER } from '../../src/data/facilities';
 import { matchPharmacies, rankFacilities } from '../../src/lib/facilitySearch';
+import { getOrCreateSession } from '../../src/lib/sessionStore';
+import { hasSupabaseConfig, supabase } from '../../src/lib/supabase';
 import { colors, radius, spacing, typography } from '../../src/theme';
 import type { Facility, Pharmacy, PharmacyStock } from '../../src/types';
 
 const DEFAULT_LOCATION_LABEL = 'Addis Ababa, Ethiopia';
 
 const RECOMMENDED_DRUGS = ['paracetamol', 'oral rehydration salts', 'amoxicillin', 'cetirizine'];
+
+function distKm(lat: number, lon: number, f: Facility): number {
+  const R = 6371;
+  const dLat = ((f.latitude - lat) * Math.PI) / 180;
+  const dLon = ((f.longitude - lon) * Math.PI) / 180;
+  const la1 = (lat * Math.PI) / 180;
+  const la2 = (f.latitude * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
 
 export default function ServicesScreen() {
   const insets = useSafeAreaInsets();
@@ -32,7 +47,80 @@ export default function ServicesScreen() {
   const conditionName = typeof params.conditionName === 'string' ? params.conditionName : null;
 
   const [uploaded, setUploaded] = useState<string | null>(null);
-  const [locationLabel] = useState(DEFAULT_LOCATION_LABEL);
+  const [locationLabel, setLocationLabel] = useState(DEFAULT_LOCATION_LABEL);
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [dbFacilities, setDbFacilities] = useState<Facility[]>([]);
+  const [navTarget, setNavTarget] = useState<Facility | Pharmacy | null>(null);
+  const [navPlaceLabel, setNavPlaceLabel] = useState<string | null>(null);
+  const [navLoading, setNavLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted' || cancelled) return;
+      const loc = await Location.getCurrentPositionAsync({});
+      if (cancelled) return;
+      setCoords({ lat: loc.coords.latitude, lon: loc.coords.longitude });
+      setLocationLabel(`${loc.coords.latitude.toFixed(3)}°, ${loc.coords.longitude.toFixed(3)}°`);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!navTarget) {
+      setNavPlaceLabel(null);
+      setNavLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setNavLoading(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${navTarget.latitude}&lon=${navTarget.longitude}`,
+          { headers: { 'User-Agent': 'RaphaHealthApp/1.0' } },
+        );
+        const j = (await res.json()) as { display_name?: string };
+        if (!cancelled) setNavPlaceLabel(j.display_name ?? null);
+      } catch {
+        if (!cancelled) setNavPlaceLabel(null);
+      } finally {
+        if (!cancelled) setNavLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [navTarget]);
+
+  useEffect(() => {
+    if (!hasSupabaseConfig || !supabase) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from('facilities')
+        .select('id, name, type, address, neighborhood, phone, latitude, longitude, capability_tags');
+      if (cancelled || error || !data) return;
+      const mapped: Facility[] = data.map((r) => ({
+        id: r.id as string,
+        name: r.name as string,
+        type: r.type as Facility['type'],
+        address: r.address as string,
+        neighborhood: r.neighborhood as string,
+        phone: (r.phone as string) ?? '',
+        latitude: r.latitude as number,
+        longitude: r.longitude as number,
+        capabilityTags: (r.capability_tags as string[]) ?? [],
+      }));
+      setDbFacilities(mapped);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const header = useMemo(() => {
     if (action === 'emergency')
@@ -55,16 +143,35 @@ export default function ServicesScreen() {
   }, [action, conditionName]);
 
   const facilityList: Facility[] = useMemo(() => {
-    if (action === 'emergency') return rankFacilities(['emergency']);
-    if (action === 'hospital') return rankFacilities(['emergency', 'general', 'surgery']);
-    if (action === 'clinic') {
-      const ranked = rankFacilities(['general', 'pediatrics']);
-      const clinics = ranked.filter((f) => f.type === 'clinic');
-      if (clinics.length > 0) return clinics;
-      return ranked.slice(0, 6);
+    const hasTag = (f: Facility, tags: string[]) => tags.some((t) => f.capabilityTags.includes(t));
+
+    let list: Facility[] = [];
+    if (dbFacilities.length > 0) {
+      if (action === 'emergency') list = dbFacilities.filter((f) => hasTag(f, ['emergency']));
+      else if (action === 'hospital')
+        list = dbFacilities.filter((f) => hasTag(f, ['emergency', 'general', 'surgery']));
+      else if (action === 'clinic') {
+        const cand = dbFacilities.filter((f) => hasTag(f, ['general', 'pediatrics']) || f.type === 'clinic');
+        list = cand.length > 0 ? cand : dbFacilities.slice(0, 6);
+      } else list = dbFacilities.filter((f) => hasTag(f, ['general'])).slice(0, 8);
+      if (list.length === 0) list = dbFacilities.slice(0, 6);
+    } else {
+      if (action === 'emergency') list = rankFacilities(['emergency']);
+      else if (action === 'hospital') list = rankFacilities(['emergency', 'general', 'surgery']);
+      else if (action === 'clinic') {
+        const ranked = rankFacilities(['general', 'pediatrics']);
+        const clinics = ranked.filter((f) => f.type === 'clinic');
+        list = clinics.length > 0 ? clinics : ranked.slice(0, 6);
+      } else list = rankFacilities(['general']);
     }
-    return rankFacilities(['general']);
-  }, [action]);
+
+    if (coords) {
+      return [...list].sort(
+        (a, b) => distKm(coords.lat, coords.lon, a) - distKm(coords.lat, coords.lon, b),
+      );
+    }
+    return list;
+  }, [action, dbFacilities, coords]);
 
   const pharmacyRows = useMemo(
     () => matchPharmacies(RECOMMENDED_DRUGS).slice(0, 4),
@@ -72,20 +179,46 @@ export default function ServicesScreen() {
   );
 
   async function pickPrescription() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Allow photo library access to upload a prescription image.');
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
+      base64: true,
+      quality: 0.75,
     });
-    if (!result.canceled) setUploaded(result.assets[0]?.fileName ?? 'Image selected');
+    if (result.canceled || !result.assets[0]?.base64 || !hasSupabaseConfig || !supabase) {
+      if (!result.canceled) setUploaded('Could not read image');
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke('prescription-ocr', {
+      body: { image_base64: result.assets[0].base64 },
+    });
+    if (error) {
+      setUploaded('Scan failed — try again');
+      return;
+    }
+    const meds = (data as { extracted_medications?: { drug_name: string }[] })?.extracted_medications ?? [];
+    const names = meds.map((m) => m.drug_name).filter(Boolean);
+    setUploaded(names.length > 0 ? `Detected: ${names.join(', ')}` : 'No medications detected');
   }
 
-  function openMaps(f: Facility | Pharmacy) {
+  function openNavigateFlow(f: Facility | Pharmacy) {
+    setNavTarget(f);
+  }
+
+  function openGoogleDirections(f: Facility | Pharmacy) {
+    const lat = f.latitude;
+    const lon = f.longitude;
     const url = Platform.select({
-      ios: `maps:0,0?q=${f.latitude},${f.longitude}`,
-      android: `geo:0,0?q=${f.latitude},${f.longitude}(${encodeURIComponent('Facility')})`,
-      default: `https://www.openstreetmap.org/?mlat=${f.latitude}&mlon=${f.longitude}#map=15/${f.latitude}/${f.longitude}`,
+      ios: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`,
+      android: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`,
+      default: `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`,
     });
     void Linking.openURL(url ?? '');
+    setNavTarget(null);
   }
 
   function dial(n: string) {
@@ -93,9 +226,41 @@ export default function ServicesScreen() {
   }
 
   function ambulanceModal() {
-    Alert.alert('Ambulance request', 'This button prepares your details. Call emergency services directly for a live ambulance.', [
-      { text: 'OK' },
-    ]);
+    Alert.alert(
+      'Ambulance request',
+      'Rapha will save a request on your account, then place a call to medical emergency (907).',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Call 907',
+          onPress: () => {
+            void (async () => {
+              if (!hasSupabaseConfig || !supabase) {
+                void Linking.openURL('tel:907');
+                return;
+              }
+              const { data: userData } = await supabase.auth.getUser();
+              const uid = userData.user?.id;
+              if (!uid) {
+                void Linking.openURL('tel:907');
+                return;
+              }
+              const { session } = await getOrCreateSession();
+              const sid = session.id;
+              const sessionId = /^[0-9a-f-]{36}$/i.test(sid) ? sid : null;
+              await supabase.from('service_requests').insert({
+                user_id: uid,
+                session_id: sessionId,
+                request_type: 'ambulance',
+                status: 'pending',
+                payload: { source: 'services', action },
+              });
+              void Linking.openURL('tel:907');
+            })();
+          },
+        },
+      ],
+    );
   }
 
   function transportModal(title: string) {
@@ -106,13 +271,14 @@ export default function ServicesScreen() {
   const showPharmacyBlock = action === 'pharmacy' || action === 'default';
 
   const region = {
-    latitude: ADDIS_CENTER.latitude,
-    longitude: ADDIS_CENTER.longitude,
+    latitude: coords?.lat ?? ADDIS_CENTER.latitude,
+    longitude: coords?.lon ?? ADDIS_CENTER.longitude,
     latitudeDelta: 0.12,
     longitudeDelta: 0.12,
   };
 
   return (
+    <>
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={[styles.hero, { backgroundColor: header.bg }]}>
         <Text style={styles.heroTitle}>{header.title}</Text>
@@ -148,15 +314,12 @@ export default function ServicesScreen() {
                 recommended={index === 0}
                 showAmbulance={action === 'emergency' && index === 0}
                 onCall={() => dial(f.phone)}
-                onNavigate={() => openMaps(f)}
+                onNavigate={() => openNavigateFlow(f)}
                 onAmbulance={ambulanceModal}
               />
             ))}
 
-            <Pressable
-              style={styles.mapPreview}
-              onPress={() => Alert.alert('Map', 'Full-screen map route can be added in Part 4.')}
-            >
+            <View style={styles.mapPreview}>
               <MapView
                 style={StyleSheet.absoluteFill}
                 region={region}
@@ -165,7 +328,10 @@ export default function ServicesScreen() {
                 pitchEnabled={false}
                 rotateEnabled={false}
               >
-                <Marker coordinate={{ latitude: ADDIS_CENTER.latitude, longitude: ADDIS_CENTER.longitude }} title="You" />
+                <Marker
+                  coordinate={{ latitude: coords?.lat ?? ADDIS_CENTER.latitude, longitude: coords?.lon ?? ADDIS_CENTER.longitude }}
+                  title="You"
+                />
                 {facilityList.slice(0, 4).map((f) => (
                   <Marker
                     key={f.id}
@@ -174,10 +340,10 @@ export default function ServicesScreen() {
                   />
                 ))}
               </MapView>
-              <View style={styles.mapOverlay}>
-                <Text style={styles.mapOverlayText}>Tap to expand map</Text>
+              <View style={styles.mapOverlay} pointerEvents="none">
+                <Text style={styles.mapOverlayText}>Map preview</Text>
               </View>
-            </Pressable>
+            </View>
           </>
         ) : null}
 
@@ -198,7 +364,7 @@ export default function ServicesScreen() {
             {uploaded ? <Text style={styles.uploaded}>{uploaded}</Text> : null}
 
             {pharmacyRows.map((p) => (
-              <PharmacyCard key={p.id} pharmacy={p} drugTotal={RECOMMENDED_DRUGS.length} onDirections={() => openMaps(p)} />
+              <PharmacyCard key={p.id} pharmacy={p} drugTotal={RECOMMENDED_DRUGS.length} onDirections={() => openNavigateFlow(p)} />
             ))}
           </>
         ) : null}
@@ -228,6 +394,59 @@ export default function ServicesScreen() {
         ) : null}
       </ScrollView>
     </SafeAreaView>
+
+    <Modal visible={navTarget !== null} animationType="slide" onRequestClose={() => setNavTarget(null)}>
+      <SafeAreaView style={styles.navModalSafe} edges={['top', 'bottom']}>
+        <View style={styles.navModalTop}>
+          <Pressable onPress={() => setNavTarget(null)} hitSlop={12}>
+            <Text style={styles.navClose}>Close</Text>
+          </Pressable>
+        </View>
+        {navTarget ? (
+          <>
+            <Text style={styles.navModalTitle}>{navTarget.name}</Text>
+            {navLoading ? (
+              <ActivityIndicator style={styles.navSpinner} color={colors.accent} />
+            ) : (
+              <Text style={styles.navAddress} numberOfLines={4}>
+                {navPlaceLabel ?? `${navTarget.latitude.toFixed(4)}, ${navTarget.longitude.toFixed(4)}`}
+              </Text>
+            )}
+            <View style={styles.navMap}>
+              <MapView
+                style={StyleSheet.absoluteFill}
+                region={{
+                  latitude: navTarget.latitude,
+                  longitude: navTarget.longitude,
+                  latitudeDelta: 0.02,
+                  longitudeDelta: 0.02,
+                }}
+              >
+                <UrlTile
+                  urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  maximumZ={19}
+                  flipY={false}
+                />
+                <Marker
+                  coordinate={{ latitude: navTarget.latitude, longitude: navTarget.longitude }}
+                  title={navTarget.name}
+                />
+              </MapView>
+            </View>
+            <Text style={styles.readyPrompt}>Ready to go?</Text>
+            <View style={styles.navActions}>
+              <Pressable style={styles.navSecondary} onPress={() => setNavTarget(null)}>
+                <Text style={styles.navSecondaryTxt}>Not now</Text>
+              </Pressable>
+              <Pressable style={styles.navPrimary} onPress={() => openGoogleDirections(navTarget)}>
+                <Text style={styles.navPrimaryTxt}>Let&apos;s go</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+      </SafeAreaView>
+    </Modal>
+    </>
   );
 }
 
@@ -259,7 +478,7 @@ function FacilityCard({
           <View style={[styles.typePill, f.type === 'clinic' ? styles.typeClinic : styles.typeHosp]}>
             <Text style={styles.typePillText}>{f.type === 'clinic' ? 'Clinic' : 'Hospital'}</Text>
           </View>
-        </View>
+              </View>
         <Text style={styles.facMeta}>
           📍 {f.neighborhood} · 🕐 {f.etaMinutes ?? '—'} min · 📏 {f.distanceKm ?? '—'} km
         </Text>
@@ -342,7 +561,7 @@ function TransportRow({
       <View style={styles.transMid}>
         <Text style={styles.transTitle}>{title}</Text>
         <Text style={styles.transSub}>{sub}</Text>
-      </View>
+            </View>
       <ChevronRight size={20} color={colors.textTertiary} />
     </Pressable>
   );
@@ -530,4 +749,65 @@ const styles = StyleSheet.create({
   transMid: { flex: 1 },
   transTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
   transSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  navModalSafe: { flex: 1, backgroundColor: colors.background },
+  navModalTop: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  navClose: { fontSize: 16, fontWeight: '600', color: colors.accent },
+  navModalTitle: {
+    ...typography.h3,
+    fontSize: 20,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+  },
+  navAddress: {
+    ...typography.bodySmall,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    color: colors.textSecondary,
+  },
+  navSpinner: { marginVertical: spacing.sm },
+  navMap: {
+    height: 260,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: colors.border,
+  },
+  readyPrompt: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.lg,
+    color: colors.textPrimary,
+  },
+  navActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  navSecondary: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  navSecondaryTxt: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
+  navPrimary: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceSoft,
+  },
+  navPrimaryTxt: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
 });

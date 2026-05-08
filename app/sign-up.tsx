@@ -181,16 +181,6 @@ export default function SignUpScreen() {
                 <Text style={styles.primaryBtnText}>Create account</Text>
               )}
             </Pressable>
-
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerOr}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <Pressable style={styles.secondaryBtn} onPress={() => router.replace('/sign-in')}>
-              <Text style={styles.secondaryBtnText}>Sign in instead</Text>
-            </Pressable>
           </View>
 
           <Text style={styles.legal}>By continuing you agree to our Terms and Privacy Policy</Text>
@@ -299,30 +289,6 @@ const styles = StyleSheet.create({
     ...typography.authCta,
     fontFamily: fonts.bodySemiBold,
     color: colors.textOnAccent,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.lg,
-    gap: spacing.md,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerOr: {
-    fontSize: typography.bodySmall.fontSize,
-    fontFamily: fonts.body,
-    color: colors.textTertiary,
-  },
-  secondaryBtn: {
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  secondaryBtnText: {
-    ...typography.authSecondaryCta,
-    fontFamily: fonts.bodySemiBold,
   },
   legal: {
     fontSize: typography.caption.fontSize,

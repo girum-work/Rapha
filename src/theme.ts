@@ -1,19 +1,9 @@
-/**
- * Rapha UI tokens — Part 1 navy / teal system.
- * `fonts` stays on Expo Google Font names for root `useFonts` until fonts are dropped app-wide.
- */
-
 export const colors = {
-  // Primary
   primary: '#0A1628',
   primaryMid: '#1B3A6B',
-
-  // Accent
   accent: '#00C2A8',
   accentLight: '#E6FAF8',
   accentDark: '#008F7A',
-
-  // Severity
   emergency: '#DC2626',
   emergencyLight: '#FEF2F2',
   urgent: '#D97706',
@@ -22,39 +12,31 @@ export const colors = {
   mildLight: '#ECFDF5',
   info: '#3B82F6',
   infoLight: '#EFF6FF',
-
-  // Neutrals
   surface: '#FFFFFF',
   background: '#F8FAFC',
   border: '#E2E8F0',
   borderStrong: '#CBD5E1',
-
-  // Text
   textPrimary: '#0F172A',
   textSecondary: '#64748B',
   textTertiary: '#94A3B8',
   textOnAccent: '#FFFFFF',
   textOnEmergency: '#FFFFFF',
-
-  // Chat bubbles
   drLucasBubble: '#0A1628',
   drLucasText: '#FFFFFF',
   userBubble: '#00C2A8',
   userText: '#FFFFFF',
-
-  // —— Legacy aliases (screens not yet migrated to new names) ——
   canvas: '#F8FAFC',
   surfaceSoft: '#F1F5F9',
   surfaceCard: '#FFFFFF',
-  surfaceCreamStrong: '#E2E8F0',
+  surfaceCreamStrong: '#CBD5E1',
   hairline: '#E2E8F0',
-  hairlineSoft: '#F1F5F9',
+  hairlineSoft: '#E2E8F0',
   ink: '#0F172A',
   body: '#0F172A',
   bodyStrong: '#0F172A',
   muted: '#64748B',
   mutedSoft: '#94A3B8',
-  primaryActive: '#008F7A',
+  primaryActive: '#1B3A6B',
   primaryDisabled: '#CBD5E1',
   onPrimary: '#FFFFFF',
   surfaceDark: '#0A1628',
@@ -67,10 +49,10 @@ export const colors = {
   success: '#059669',
   warning: '#D97706',
   error: '#DC2626',
-  surfaceMuted: '#F1F5F9',
+  surfaceMuted: '#F8FAFC',
   text: '#0F172A',
   textMuted: '#64748B',
-  primarySoft: 'rgba(0, 194, 168, 0.18)',
+  primarySoft: 'rgba(10,22,40,0.12)',
   danger: '#DC2626',
   dangerSoft: '#FEF2F2',
   warningSoft: '#FFFBEB',
@@ -78,23 +60,22 @@ export const colors = {
 };
 
 export const spacing = {
+  xxs: 4,
   xs: 4,
   sm: 8,
   md: 16,
   lg: 24,
   xl: 32,
   xxl: 48,
-  /** @deprecated use `xs` — same value */
-  xxs: 4,
 };
 
 export const radius = {
+  xs: 4,
   sm: 8,
   md: 12,
   lg: 16,
   xl: 24,
   full: 9999,
-  xs: 8,
   pill: 9999,
 };
 
@@ -106,28 +87,27 @@ export const typography = {
   bodySmall: { fontSize: 13, fontWeight: '400' as const, lineHeight: 18, color: colors.textSecondary },
   caption: {
     fontSize: 11,
-    fontWeight: '500' as const,
+    fontWeight: '600' as const,
     color: colors.textTertiary,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
   },
   label: { fontSize: 13, fontWeight: '600' as const, color: colors.textSecondary },
-
-  /** Auth / marketing headers */
-  authBrand: { fontSize: 32, fontWeight: '700' as const, letterSpacing: -0.4, color: colors.primary },
-  authTagline: { fontSize: 14, fontWeight: '400' as const, color: colors.textSecondary },
-  authWelcome: { fontSize: 22, fontWeight: '700' as const, color: colors.primary },
-  authLead: { fontSize: 14, fontWeight: '400' as const, color: colors.textSecondary },
-  authCta: { fontSize: 16, fontWeight: '700' as const },
+  authBrand: { fontSize: 32, fontWeight: '700' as const, letterSpacing: -0.6, color: colors.primary },
+  authTagline: { fontSize: 14, fontWeight: '400' as const, lineHeight: 22, color: colors.textSecondary },
+  authWelcome: { fontSize: 22, fontWeight: '700' as const, letterSpacing: -0.3, color: colors.textPrimary },
+  authLead: { fontSize: 15, fontWeight: '400' as const, lineHeight: 22, color: colors.textSecondary },
+  authCta: { fontSize: 15, fontWeight: '600' as const },
   authSecondaryCta: { fontSize: 15, fontWeight: '600' as const, color: colors.textPrimary },
-  otpDigit: { fontSize: 22, fontWeight: '700' as const, color: colors.textPrimary },
+  otpDigit: { fontSize: 22, fontWeight: '600' as const, color: colors.textPrimary },
 };
 
-/** Loaded via `useFonts` in `app/_layout.tsx`. */
 export const fonts = {
-  display: 'CormorantGaramond_500Medium',
-  displayRegular: 'CormorantGaramond_400Regular',
-  body: 'Inter_400Regular',
-  bodyMedium: 'Inter_500Medium',
-  bodySemiBold: 'Inter_600SemiBold',
+  display: 'System',
+  displayRegular: 'System',
+  body: 'System',
+  bodyRegular: 'System',
+  bodyMedium: 'System',
+  bodySemiBold: 'System',
+  bodyBold: 'System',
 } as const;

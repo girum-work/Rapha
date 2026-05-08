@@ -24,6 +24,8 @@ export type TriageResponse = {
   severity: Severity;
   confidence: number;
   next_question?: string;
+  /** Short labels for multiple-choice follow-ups when action is ask_more */
+  question_options?: string[];
   red_flags: string[];
   action: TriageAction;
   required_services: string[];

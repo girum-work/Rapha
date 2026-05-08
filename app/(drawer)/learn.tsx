@@ -173,7 +173,7 @@ export default function LearnScreen() {
           <View style={styles.decor} />
           <Text style={styles.featureLabel}>Continue learning</Text>
           <Text style={styles.featureTitle}>{featured.lesson.title}</Text>
-          <Text style={[styles.featureTrack, { color: colors.accent }]}>{featured.track.name}</Text>
+          <Text style={[styles.featureTrack, { color: colors.accentTeal }]}>{featured.track.name}</Text>
           <View style={styles.dots}>
             {[0, 1, 2].map((i) => (
               <View
@@ -273,16 +273,16 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 28,
   },
-  heroTitle: { fontSize: 24, fontWeight: '700', color: colors.surface },
-  heroSub: { fontSize: 13, color: colors.textTertiary, marginTop: 6 },
+  heroTitle: { fontSize: 24, fontWeight: '600', color: colors.onDark },
+  heroSub: { fontSize: 13, color: colors.onDarkSoft, marginTop: 6 },
   progressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 16,
     alignItems: 'center',
   },
-  progressLabel: { fontSize: 11, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  progressCount: { fontSize: 11, color: colors.accent, fontWeight: '600' },
+  progressLabel: { fontSize: 11, color: colors.onDarkSoft, textTransform: 'uppercase', letterSpacing: 0.5 },
+  progressCount: { fontSize: 11, color: colors.onDark, fontWeight: '600' },
   barBg: {
     marginTop: 8,
     height: 6,
@@ -345,23 +345,23 @@ const styles = StyleSheet.create({
   },
   featureLabel: {
     fontSize: 11,
-    color: colors.textTertiary,
+    color: colors.onDarkSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  featureTitle: { fontSize: 20, fontWeight: '700', color: colors.surface, marginTop: 8 },
+  featureTitle: { fontSize: 20, fontWeight: '600', color: colors.onDark, marginTop: 8 },
   featureTrack: { fontSize: 13, marginTop: 6, fontWeight: '600' },
   dots: { flexDirection: 'row', gap: 8, marginTop: 16 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   cta: {
     marginTop: 20,
     alignSelf: 'flex-start',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.surface,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 10,
+    borderRadius: radius.md,
   },
-  ctaText: { color: colors.textOnAccent, fontWeight: '700', fontSize: 15 },
+  ctaText: { color: colors.ink, fontWeight: '600', fontSize: 14 },
   challenge: {
     flexDirection: 'row',
     alignItems: 'center',
