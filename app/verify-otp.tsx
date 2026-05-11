@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Mail } from 'lucide-react-native';
+import { MotiView } from 'moti';
 import { createRef, useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   Pressable,
   StyleSheet,
   Text,
@@ -35,17 +35,11 @@ export default function VerifyOtpScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [focusIdx, setFocusIdx] = useState<number | null>(0);
-  const shake = useRef(new Animated.Value(0)).current;
+  const [shakeNonce, setShakeNonce] = useState(0);
 
   const runShake = useCallback(() => {
-    shake.setValue(0);
-    Animated.sequence([
-      Animated.timing(shake, { toValue: 8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: -8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: 6, duration: 50, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: 0, duration: 50, useNativeDriver: true }),
-    ]).start();
-  }, [shake]);
+    setShakeNonce((n) => n + 1);
+  }, []);
 
   const handleVerify = useCallback(
     async (code: string) => {
@@ -141,7 +135,12 @@ export default function VerifyOtpScreen() {
             <Text style={styles.wrongEmail}>Wrong email? Go back</Text>
           </Pressable>
 
-          <Animated.View style={[styles.otpRow, { transform: [{ translateX: shake }] }]}>
+          <MotiView
+            style={styles.otpRow}
+            from={{ translateX: 0 }}
+            animate={{ translateX: shakeNonce ? [0, 8, -8, 6, 0] : 0 }}
+            transition={{ type: 'timing', duration: 50 }}
+          >
             {otp.map((digit, index) => {
               const focused = focusIdx === index;
               const filled = digit.length > 0;
@@ -167,7 +166,7 @@ export default function VerifyOtpScreen() {
                 />
               );
             })}
-          </Animated.View>
+          </MotiView>
 
           {error ? <Text style={styles.errMsg}>{error}</Text> : null}
 

@@ -4,24 +4,24 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { ArrowUp, Camera, MoreHorizontal, Paperclip, Stethoscope } from 'lucide-react-native';
+import { MotiView } from 'moti';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   FlatList,
   KeyboardAvoidingView,
   Linking,
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { RichContent } from '../../src/components/chat/RichContent';
 import { dbgIngestLog } from '../../src/lib/debugIngest';
 import { hasSupabaseConfig, supabase } from '../../src/lib/supabase';
 import {
@@ -31,8 +31,10 @@ import {
   hydrateSessionFromRemote,
   sendChatMessage,
 } from '../../src/lib/sessionStore';
-import { colors, radius, spacing, typography } from '../../src/theme';
+import { colors, spacing } from '../../src/theme';
 import { ChatMessage, ChatSession, TriageResponse } from '../../src/types';
+import { useAppStore, useMessages, useDrLucasStatus } from '../../src/store';
+import { useProfileQuery } from '../../src/hooks/queries';
 
 const SUGGESTIONS = [
   { label: 'I have a fever 🌡️', text: 'I have a fever' },
@@ -51,11 +53,11 @@ function ConfidenceBar({ confidence }: { confidence: number }) {
   const pct = Math.max(0, Math.min(1, confidence));
   const pctLabel = Math.round(pct * 100);
   return (
-    <View style={styles.confidenceWrap}>
-      <View style={styles.confidenceTrackSingle}>
-        <View style={[styles.confidenceFillSingle, { width: `${pct * 100}%` }]} />
+    <View className="gap-1.5">
+      <View className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: colors.border }}>
+        <View className="h-full rounded-full" style={{ width: `${pct * 100}%`, backgroundColor: colors.accent }} />
       </View>
-      <Text style={styles.confidencePct}>{pctLabel}% confidence</Text>
+      <Text className="text-[12px] font-semibold text-muted-foreground">{pctLabel}% confidence</Text>
     </View>
   );
 }
@@ -68,42 +70,22 @@ function normalizeTriageOneCondition(s: TriageResponse): TriageResponse {
 }
 
 function TypingBubble() {
-  const a1 = useRef(new Animated.Value(1)).current;
-  const a2 = useRef(new Animated.Value(1)).current;
-  const a3 = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const mk = (v: Animated.Value, delay: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(v, { toValue: 1.35, duration: 280, useNativeDriver: true }),
-          Animated.timing(v, { toValue: 1, duration: 280, useNativeDriver: true }),
-        ]),
-      );
-    const l1 = mk(a1, 0);
-    const l2 = mk(a2, 120);
-    const l3 = mk(a3, 240);
-    l1.start();
-    l2.start();
-    l3.start();
-    return () => {
-      l1.stop();
-      l2.stop();
-      l3.stop();
-    };
-  }, [a1, a2, a3]);
-
   return (
-    <View style={styles.typingRow}>
-      <View style={styles.dlAvatar}>
-        <Text style={styles.dlAvatarText}>DL</Text>
+    <View className="flex-row items-end mb-4 gap-2">
+      <View className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: colors.drLucasBubble }}>
+        <Text className="text-[12px] font-bold" style={{ color: colors.drLucasText }}>DL</Text>
       </View>
-      <View style={styles.assistantBubbleOuter}>
-        <View style={styles.typingDotsRow}>
-          <Animated.View style={[styles.typingDot, { transform: [{ scale: a1 }] }]} />
-          <Animated.View style={[styles.typingDot, { transform: [{ scale: a2 }] }]} />
-          <Animated.View style={[styles.typingDot, { transform: [{ scale: a3 }] }]} />
+      <View className="max-w-[85%]">
+        <View className="flex-row items-center gap-1.5 rounded-[18px] rounded-bl-[4px] py-[14px] px-4" style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
+          {[0, 120, 240].map((delay) => (
+            <MotiView
+              key={delay}
+              style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.textTertiary }}
+              from={{ scale: 1 }}
+              animate={{ scale: [1, 1.35, 1] }}
+              transition={{ type: 'timing', duration: 560, delay, loop: true }}
+            />
+          ))}
         </View>
       </View>
     </View>
@@ -111,186 +93,150 @@ function TypingBubble() {
 }
 
 function TriageCards({
-  structured,
-  onDefer,
-  onComplete,
-  onNavigateServices,
+  structured, onDefer, onComplete, onNavigateServices,
 }: {
-  structured: TriageResponse;
-  onDefer: () => void;
-  onComplete: () => void;
-  onNavigateServices: (action: string) => void;
+  structured: TriageResponse; onDefer: () => void; onComplete: () => void; onNavigateServices: (action: string) => void;
 }) {
   const c0 = structured.conditions[0];
 
   if (structured.action === 'emergency') {
     return (
-      <View style={[styles.actionCard, styles.actionCardEmergency]}>
-        <Text style={styles.actionTitleEmergency}>🚨 Emergency — Immediate Care Needed</Text>
-        {c0 ? (
-          <>
-            <Text style={styles.actionBody}>{c0.name}</Text>
-            <Text style={styles.actionBodySmall}>{c0.rationale}</Text>
-          </>
-        ) : (
-          <Text style={styles.actionBody}>Seek emergency care now if symptoms are severe.</Text>
-        )}
-        <View style={styles.actionGap} />
-        <ConfidenceBar confidence={structured.confidence} />
-        <View style={styles.actionGapLg} />
-        <Pressable style={styles.btnEmergencyFill} onPress={() => onNavigateServices('emergency')}>
-          <Text style={styles.btnEmergencyFillText}>Get Emergency Help →</Text>
+      <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+        className="rounded-xl mx-4 mb-2 p-4 border-l-4"
+        style={{ backgroundColor: colors.emergencyLight, borderLeftColor: colors.emergency }}>
+        <Text className="text-[16px] font-bold" style={{ color: colors.emergency }}>🚨 Emergency — Immediate Care Needed</Text>
+        {c0 ? (<><Text className="text-[14px] leading-5 mt-2 text-foreground">{c0.name}</Text><Text className="text-[13px] text-muted-foreground mt-1">{c0.rationale}</Text></>) : (<Text className="text-[14px] leading-5 mt-2 text-foreground">Seek emergency care now if symptoms are severe.</Text>)}
+        <View className="h-2" /><ConfidenceBar confidence={structured.confidence} /><View className="h-3" />
+        <Pressable className="rounded-xl py-[14px] items-center" style={{ backgroundColor: colors.emergency }} onPress={() => onNavigateServices('emergency')}>
+          <Text className="text-[15px] font-semibold" style={{ color: colors.textOnEmergency }}>Get Emergency Help →</Text>
         </Pressable>
-        <View style={styles.actionGapSm} />
-        <Pressable
-          style={styles.btnEmergencyOutline}
-          onPress={() => void Linking.openURL('tel:907')}
-        >
-          <Text style={styles.btnEmergencyOutlineText}>Call emergency contact</Text>
+        <View className="h-2" />
+        <Pressable className="rounded-xl py-[14px] items-center bg-card border" style={{ borderColor: colors.emergency }} onPress={() => void Linking.openURL('tel:907')}>
+          <Text className="text-[15px] font-semibold" style={{ color: colors.emergency }}>Call emergency contact</Text>
         </Pressable>
-      </View>
+      </MotiView>
     );
   }
 
   if (structured.action === 'hospital' || structured.action === 'clinic') {
     const isHospital = structured.action === 'hospital';
     return (
-      <View style={[styles.actionCard, styles.actionCardUrgent]}>
-        <Text style={styles.actionTitleUrgent}>
-          {isHospital ? '🏥 Hospital care suggested' : '🩺 Clinic visit suggested'}
-        </Text>
-        {c0 ? (
-          <>
-            <Text style={styles.actionBody}>{c0.name}</Text>
-            <Text style={styles.actionBodySmall}>{c0.rationale}</Text>
-          </>
-        ) : null}
-        <View style={styles.actionGap} />
-        <ConfidenceBar confidence={structured.confidence} />
-        <View style={styles.actionGapLg} />
-        <Pressable
-          style={styles.btnUrgentFill}
-          onPress={() => onNavigateServices(isHospital ? 'hospital' : 'clinic')}
-        >
-          <Text style={styles.btnUrgentFillText}>{isHospital ? 'Find nearest hospital →' : 'Find nearest clinic →'}</Text>
+      <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+        className="rounded-xl mx-4 mb-2 p-4 border-l-4"
+        style={{ backgroundColor: colors.urgentLight, borderLeftColor: colors.urgent }}>
+        <Text className="text-[16px] font-bold" style={{ color: colors.urgent }}>{isHospital ? '🏥 Hospital care suggested' : '🩺 Clinic visit suggested'}</Text>
+        {c0 ? (<><Text className="text-[14px] leading-5 mt-2 text-foreground">{c0.name}</Text><Text className="text-[13px] text-muted-foreground mt-1">{c0.rationale}</Text></>) : null}
+        <View className="h-2" /><ConfidenceBar confidence={structured.confidence} /><View className="h-3" />
+        <Pressable className="rounded-xl py-[14px] items-center" style={{ backgroundColor: colors.urgent }} onPress={() => onNavigateServices(isHospital ? 'hospital' : 'clinic')}>
+          <Text className="text-[15px] font-semibold text-white">{isHospital ? 'Find nearest hospital →' : 'Find nearest clinic →'}</Text>
         </Pressable>
-        <View style={styles.actionGapSm} />
-        <Pressable style={styles.btnUrgentOutline} onPress={onDefer}>
-          <Text style={styles.btnUrgentOutlineText}>Remind me in 6 hours</Text>
+        <View className="h-2" />
+        <Pressable className="rounded-xl py-[14px] items-center bg-card border" style={{ borderColor: colors.urgent }} onPress={onDefer}>
+          <Text className="text-[15px] font-semibold" style={{ color: colors.urgent }}>Remind me in 6 hours</Text>
         </Pressable>
-      </View>
+      </MotiView>
     );
   }
 
   if (structured.action === 'pharmacy') {
-    const chips =
-      structured.required_services?.filter((s) => s.length > 0 && s !== 'pharmacy') ?? [];
+    const chips = structured.required_services?.filter((s) => s.length > 0 && s !== 'pharmacy') ?? [];
     return (
-      <View style={[styles.actionCard, styles.actionCardMild]}>
-        <Text style={styles.actionTitleMild}>💊 Pharmacy</Text>
-        <Text style={styles.actionBodySmall}>We will help you find stock nearby.</Text>
+      <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+        className="rounded-xl mx-4 mb-2 p-4 border-l-4"
+        style={{ backgroundColor: colors.mildLight, borderLeftColor: colors.mild }}>
+        <Text className="text-[16px] font-bold" style={{ color: colors.mild }}>💊 Pharmacy</Text>
+        <Text className="text-[13px] text-muted-foreground mt-1">We will help you find stock nearby.</Text>
         {chips.length > 0 ? (
-          <View style={styles.chipRow}>
+          <View className="flex-row flex-wrap gap-2 mt-2">
             {chips.map((d) => (
-              <View key={d} style={styles.drugChip}>
-                <Text style={styles.drugChipText}>{d}</Text>
+              <View key={d} className="px-2 py-1 rounded-md" style={{ backgroundColor: colors.accentLight }}>
+                <Text className="text-[12px] font-semibold" style={{ color: colors.accentDark }}>{d}</Text>
               </View>
             ))}
           </View>
         ) : null}
-        <View style={styles.actionGapLg} />
-        <Pressable style={styles.btnMildFill} onPress={() => onNavigateServices('pharmacy')}>
-          <Text style={styles.btnMildFillText}>Find pharmacy with stock →</Text>
+        <View className="h-3" />
+        <Pressable className="rounded-xl py-[14px] items-center" style={{ backgroundColor: colors.mild }} onPress={() => onNavigateServices('pharmacy')}>
+          <Text className="text-[15px] font-semibold text-white">Find pharmacy with stock →</Text>
         </Pressable>
-      </View>
+      </MotiView>
     );
   }
 
   if (structured.action === 'first_aid') {
-    const primary =
-      structured.conditions.length > 0
-        ? [...structured.conditions].sort((a, b) => b.confidence - a.confidence)[0]!
-        : null;
+    const primary = structured.conditions.length > 0 ? [...structured.conditions].sort((a, b) => b.confidence - a.confidence)[0]! : null;
     const steps = primary
       ? [{ n: 1, title: primary.name, detail: primary.rationale }]
       : structured.red_flags.length > 0
         ? [{ n: 1, title: structured.red_flags[0]!, detail: '' }]
         : [{ n: 1, title: 'General care', detail: 'Follow safe rest and hydration guidance.' }];
     return (
-      <View style={[styles.actionCard, styles.actionCardInfo]}>
-        <Text style={styles.actionTitleInfo}>🩹 First aid</Text>
+      <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+        className="rounded-xl mx-4 mb-2 p-4 border-l-4"
+        style={{ backgroundColor: colors.infoLight, borderLeftColor: colors.info }}>
+        <Text className="text-[16px] font-bold" style={{ color: colors.info }}>🩹 First aid</Text>
         {steps.map((s) => (
-          <View key={s.n} style={styles.stepRow}>
-            <Text style={styles.stepNum}>{s.n}.</Text>
-            <View style={styles.stepBody}>
-              <Text style={styles.actionBody}>{s.title}</Text>
-              {s.detail ? <Text style={styles.actionBodySmall}>{s.detail}</Text> : null}
+          <View key={s.n} className="flex-row items-start gap-3 mt-2">
+            <Text className="text-[13px] font-bold w-[22px]" style={{ color: colors.info }}>{s.n}.</Text>
+            <View className="flex-1">
+              <Text className="text-[14px] leading-5 text-foreground">{s.title}</Text>
+              {s.detail ? <Text className="text-[13px] text-muted-foreground mt-1">{s.detail}</Text> : null}
             </View>
-            <View style={styles.stepCheck} />
+            <View className="w-[18px] h-[18px] rounded-[4px] border mt-0.5" style={{ borderColor: colors.borderStrong }} />
           </View>
         ))}
-        <View style={styles.actionGapLg} />
-        <Pressable style={styles.btnInfoFill} onPress={onComplete}>
-          <Text style={styles.btnInfoFillText}>I&apos;ve completed first aid</Text>
+        <View className="h-3" />
+        <Pressable className="rounded-xl py-[14px] items-center" style={{ backgroundColor: colors.info }} onPress={onComplete}>
+          <Text className="text-[15px] font-semibold text-white">I&apos;ve completed first aid</Text>
         </Pressable>
-      </View>
+      </MotiView>
     );
   }
 
   if (structured.action === 'self_care') {
     return (
-      <View style={[styles.actionCard, styles.actionCardSelf]}>
-        <Text style={styles.actionTitleSelf}>Self care</Text>
-        <Text style={styles.actionBodySmall}>Watch for these warning signs:</Text>
+      <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+        className="rounded-xl mx-4 mb-2 p-4 border-l-4 bg-background"
+        style={{ borderLeftColor: colors.textTertiary }}>
+        <Text className="text-[16px] font-bold text-muted-foreground">Self care</Text>
+        <Text className="text-[13px] text-muted-foreground mt-1">Watch for these warning signs:</Text>
         {structured.red_flags.map((t) => (
-          <Text key={t} style={styles.bulletLine}>
-            • {t}
-          </Text>
+          <Text key={t} className="text-[13px] text-foreground mt-1">• {t}</Text>
         ))}
-        <View style={styles.actionGapLg} />
-        <Pressable style={styles.btnSelfOutline} onPress={onComplete}>
-          <Text style={styles.btnSelfOutlineText}>I&apos;m feeling worse — restart</Text>
+        <View className="h-3" />
+        <Pressable className="rounded-xl py-[14px] items-center bg-card border" style={{ borderColor: colors.borderStrong }} onPress={onComplete}>
+          <Text className="text-[15px] font-semibold text-muted-foreground">I&apos;m feeling worse — restart</Text>
         </Pressable>
-      </View>
+      </MotiView>
     );
   }
 
   return null;
 }
 
-function PinnedTriageBanner({
-  structured,
-  onOpenServices,
-}: {
-  structured: TriageResponse;
-  onOpenServices: () => void;
+function PinnedTriageBanner({ structured, onOpenServices }: {
+  structured: TriageResponse; onOpenServices: () => void;
 }) {
   const c0 = structured.conditions[0];
-  const label =
-    structured.action === 'emergency'
-      ? 'Emergency'
-      : structured.action === 'hospital'
-        ? 'Hospital'
-        : structured.action === 'clinic'
-          ? 'Clinic'
-          : structured.action === 'pharmacy'
-            ? 'Pharmacy'
-            : structured.action === 'first_aid'
-              ? 'First aid'
-              : structured.action === 'self_care'
-                ? 'Self care'
-                : 'Care';
+  const label = { emergency: 'Emergency', hospital: 'Hospital', clinic: 'Clinic', pharmacy: 'Pharmacy', first_aid: 'First aid', self_care: 'Self care', ask_more: 'Consultation' }[structured.action] ?? 'Care';
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onOpenServices}
-      style={({ pressed }) => [styles.pinnedBar, pressed && styles.pinnedBarPressed]}
+      className="rounded-xl mb-4 p-3 border"
+      style={({ pressed }) => ([
+        { backgroundColor: colors.mildLight, borderColor: colors.mild },
+        pressed && { opacity: 0.9 },
+      ])}
     >
-      <Text style={styles.pinnedBarTitle}>Pinned · {label}</Text>
-      <Text style={styles.pinnedBarSub} numberOfLines={1}>
-        {c0?.name ?? 'Your triage result'}
-      </Text>
-      <Text style={styles.pinnedBarHint}>Tap for Care Options</Text>
+      <Text className="text-[12px] font-bold uppercase tracking-[0.4px]" style={{ color: colors.mild }}>Pinned · {label}</Text>
+      <Text className="text-[14px] font-semibold text-foreground mt-0.5" numberOfLines={1}>{c0?.name ?? 'Your triage result'}</Text>
+      <Text className="text-[12px] text-muted-foreground mt-1">Tap for Care Options</Text>
     </Pressable>
   );
 }
@@ -310,6 +256,10 @@ export default function HomeScreen() {
   const [pendingDisclaimerMsgId, setPendingDisclaimerMsgId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
+
+  // Zustand store sync
+  const { addMessage: storeAddMessage, setDrLucasStatus, setActionCard } = useAppStore();
+  const { data: profile } = useProfileQuery();
 
   const scrollToEnd = useCallback(() => {
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
@@ -413,14 +363,6 @@ export default function HomeScreen() {
   async function sendUserText(text: string) {
     const trimmed = text.trim();
     if (!session || !trimmed) return;
-    if (__DEV__) {
-      // eslint-disable-next-line no-console
-      console.log('[DEBUG] Calling chat-triage with:', {
-        message: trimmed,
-        sessionId: session.id,
-        messageCount: messages.length,
-      });
-    }
     if (lastStructured && lastStructured.action !== 'ask_more') {
       setPinnedStructured(lastStructured);
     }
@@ -428,23 +370,38 @@ export default function HomeScreen() {
     setLastStructured(null);
     setSending(true);
     setInput('');
+    setDrLucasStatus('thinking');
+    setActionCard(null);
+    // Optimistically add user message to store
+    storeAddMessage({
+      id: Date.now().toString(),
+      role: 'user',
+      content: trimmed,
+      created_at: new Date().toISOString(),
+    });
+    setTimeout(() => setDrLucasStatus('responding'), 800);
     const result = await sendChatMessage(session, messages, trimmed);
-    if (__DEV__) {
-      const lastDebug = result.messages[result.messages.length - 1];
-      // eslint-disable-next-line no-console
-      console.log('[DEBUG] chat-triage done', { connectionFallback: lastDebug?.connectionFallback });
-    }
     setSession(result.session);
     setMessages(result.messages);
     setLastStructured(result.structured);
     const last = result.messages[result.messages.length - 1];
-    if (last?.role === 'assistant' && !last.connectionFallback) {
-      setPendingDisclaimerMsgId(last.id);
+    if (last?.role === 'assistant') {
+      // Add assistant reply to store
+      storeAddMessage({
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: last.content,
+        structured_response: last.structuredResponse as Record<string, unknown> | undefined,
+        created_at: last.createdAt ?? new Date().toISOString(),
+      });
+      if (!last.connectionFallback) setPendingDisclaimerMsgId(last.id);
     }
-    if (last?.connectionFallback) {
-      setInput(trimmed);
+    if (result.structured?.action && result.structured.action !== 'ask_more') {
+      setActionCard(result.structured as Record<string, unknown>);
     }
+    if (last?.connectionFallback) setInput(trimmed);
     setSending(false);
+    setDrLucasStatus('idle');
     scrollToEnd();
   }
 
@@ -454,39 +411,7 @@ export default function HomeScreen() {
   }
 
   async function handleDefer() {
-    // #region agent log
-    fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
-      body: JSON.stringify({
-        sessionId: 'd90aac',
-        location: 'index.tsx:handleDefer:entry',
-        message: 'Remind pressed',
-        data: { hasSession: !!session },
-        timestamp: Date.now(),
-        hypothesisId: 'H1',
-        runId: 'pre-fix',
-      }),
-    }).catch(() => {});
-    // #endregion
-    if (!session) {
-      // #region agent log
-      fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
-        body: JSON.stringify({
-          sessionId: 'd90aac',
-          location: 'index.tsx:handleDefer:no-session',
-          message: 'defer aborted — no session',
-          data: {},
-          timestamp: Date.now(),
-          hypothesisId: 'H2',
-          runId: 'pre-fix',
-        }),
-      }).catch(() => {});
-      // #endregion
-      return;
-    }
+    if (!session) return;
     try {
       const existing = await Notifications.getPermissionsAsync();
       let granted = existing.status === 'granted';
@@ -494,68 +419,16 @@ export default function HomeScreen() {
         const req = await Notifications.requestPermissionsAsync();
         granted = req.status === 'granted';
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
-        body: JSON.stringify({
-          sessionId: 'd90aac',
-          location: 'index.tsx:handleDefer:perm',
-          message: 'notification permission',
-          data: { granted },
-          timestamp: Date.now(),
-          hypothesisId: 'H3',
-          runId: 'pre-fix',
-        }),
-      }).catch(() => {});
-      // #endregion
       if (!granted) {
         Alert.alert('Notifications', 'Allow notifications in Settings so Rapha can remind you.');
       }
-      const notifId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Rapha',
-          body: 'Rapha will remind you to visit the clinic/hospital in 6 hours.',
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: 6 * 60 * 60,
-          repeats: false,
-        },
+      await Notifications.scheduleNotificationAsync({
+        content: { title: 'Rapha', body: 'Rapha will remind you to visit the clinic/hospital in 6 hours.' },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 6 * 60 * 60, repeats: false },
       });
-      // #region agent log
-      fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
-        body: JSON.stringify({
-          sessionId: 'd90aac',
-          location: 'index.tsx:handleDefer:scheduled',
-          message: 'scheduled local notification',
-          data: { notifId },
-          timestamp: Date.now(),
-          hypothesisId: 'H4',
-          runId: 'pre-fix',
-        }),
-      }).catch(() => {});
-      // #endregion
       const updated = await deferSession(session);
       setSession(updated);
-    } catch (e) {
-      // #region agent log
-      fetch('http://127.0.0.1:7889/ingest/b65fff1d-83ff-4aa1-9e61-afb69ca06a52', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd90aac' },
-        body: JSON.stringify({
-          sessionId: 'd90aac',
-          location: 'index.tsx:handleDefer:error',
-          message: 'defer failed',
-          data: { err: e instanceof Error ? e.message : String(e) },
-          timestamp: Date.now(),
-          hypothesisId: 'H5',
-          runId: 'pre-fix',
-        }),
-      }).catch(() => {});
-      // #endregion
+    } catch {
       Alert.alert('Reminder', 'Could not schedule the reminder. Try again.');
     }
   }
@@ -639,20 +512,24 @@ export default function HomeScreen() {
 
   const emptyState = useMemo(
     () => (
-      <View style={styles.emptyWrap}>
-        <View style={styles.emptyIconCircle}>
+      <View className="flex-1 items-center justify-center py-12 px-8">
+        <View className="w-[88px] h-[88px] rounded-full items-center justify-center mb-6" style={{ backgroundColor: colors.accentLight }}>
           <Stethoscope size={36} color={colors.accent} strokeWidth={2} />
         </View>
-        <Text style={styles.emptyGreeting}>
+        <Text className="text-[22px] font-bold text-foreground text-center mb-2">
           {greetingPrefix()}, {displayName || 'there'}
         </Text>
-        <Text style={styles.emptyLead}>
+        <Text className="text-[15px] text-muted-foreground text-center leading-6 mb-6">
           I&apos;m Dr Lucas. Describe your symptoms and I&apos;ll help you find the right care.
         </Text>
-        <View style={styles.suggestionCol}>
+        <View className="gap-3 w-full">
           {SUGGESTIONS.map((s) => (
-            <Pressable key={s.label} style={styles.suggestionChip} onPress={() => setInput(s.text)}>
-              <Text style={styles.suggestionChipText}>{s.label}</Text>
+            <Pressable
+              key={s.label}
+              className="bg-card border border-border rounded-full py-3 px-4 items-center"
+              onPress={() => setInput(s.text)}
+            >
+              <Text className="text-[14px] text-foreground text-center">{s.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -663,30 +540,30 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingScreen}>
+      <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeTop} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <KeyboardAvoidingView
-        style={styles.flex}
+        className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={insets.top}
       >
-        <View style={styles.headerBar}>
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>Dr Lucas</Text>
-            <Text style={styles.headerSubtitle}>AI Health Assistant</Text>
+        <View className="flex-row items-center justify-between px-4 py-1 bg-background">
+          <View className="flex-1">
+            <Text className="text-[20px] font-bold text-foreground">Dr Lucas</Text>
+            <Text className="text-[12px] text-muted-foreground mt-0.5">AI Health Assistant</Text>
           </View>
-          <View style={styles.headerActions}>
+          <View className="flex-row items-center">
             <Pressable
               accessibilityRole="button"
               hitSlop={12}
               onPress={() => void runImageFlow('camera')}
-              style={styles.headerSideBtn}
+              className="w-11 h-11 items-center justify-center"
             >
               <Camera size={22} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
@@ -695,7 +572,7 @@ export default function HomeScreen() {
               accessibilityLabel="Open menu"
               hitSlop={12}
               onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-              style={styles.headerSideBtn}
+              className="w-11 h-11 items-center justify-center"
             >
               <MoreHorizontal size={22} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
@@ -704,10 +581,10 @@ export default function HomeScreen() {
 
         <FlatList
           ref={listRef}
-          style={styles.list}
+          className="flex-1"
           data={messages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={[styles.listContent, { paddingBottom: spacing.sm }]}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8, paddingTop: 8, flexGrow: 1 }}
           ListEmptyComponent={messages.length === 0 && !sending ? emptyState : null}
           ListHeaderComponent={
             displayPinnedStructured ? (
@@ -754,53 +631,53 @@ export default function HomeScreen() {
         ) : null}
 
         {showAskMoreChips ? (
-          <View style={styles.mcqWrap}>
+          <View className="px-4 py-1">
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.mcqScroll}
+              contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
             >
               {askMoreOptions.map((opt) => (
-                <Pressable key={opt} style={styles.mcqChip} onPress={() => void sendUserText(opt)}>
-                  <Text style={styles.mcqChipText}>{opt}</Text>
+                <Pressable key={opt} className="bg-card border border-border rounded-full py-2 px-4 mr-2" onPress={() => void sendUserText(opt)}>
+                  <Text className="text-[13px] text-foreground">{opt}</Text>
                 </Pressable>
               ))}
             </ScrollView>
           </View>
         ) : null}
 
-        <Text style={styles.disclaimer}>Rapha assists but does not replace a doctor</Text>
+        <Text className="text-[11px] text-center text-muted-foreground px-6 py-1">
+          Rapha assists but does not replace a doctor
+        </Text>
 
-        <View style={[styles.composerOuter, { paddingBottom: Platform.OS === 'ios' ? 34 : 16 }]}>
-          <View style={styles.composerRow}>
+        <View className="bg-background px-4 pt-1" style={{ paddingBottom: Platform.OS === 'ios' ? 34 : 16 }}>
+          <View className="flex-row items-end gap-2">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Attach"
               hitSlop={8}
-              style={styles.attachBtn}
+              className="w-9 h-9 rounded-full items-center justify-center"
+              style={{ backgroundColor: colors.surface }}
               onPress={() => void runImageFlow('library')}
             >
               <Paperclip size={18} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
             <TextInput
-              style={styles.input}
+              className="flex-1 bg-card border border-border rounded-3xl py-3 px-4 text-[15px] text-foreground"
+              style={{ minHeight: 44, maxHeight: 22 * 4 + 24, textAlignVertical: 'center' }}
               value={input}
               onChangeText={setInput}
               placeholder="Message Dr Lucas..."
               placeholderTextColor={colors.textTertiary}
               multiline
               maxLength={4000}
-              textAlignVertical="center"
             />
             <Pressable
               accessibilityRole="button"
               onPress={handleSend}
               disabled={!input.trim() || sending}
-              style={({ pressed }) => [
-                styles.sendBtn,
-                (!input.trim() || sending) && styles.sendBtnDisabled,
-                pressed && input.trim() && !sending && styles.sendBtnPressed,
-              ]}
+              className="w-11 h-11 rounded-full items-center justify-center"
+              style={{ backgroundColor: (!input.trim() || sending) ? colors.borderStrong : colors.accent }}
             >
               <ArrowUp size={22} color={colors.textOnAccent} strokeWidth={2.5} />
             </Pressable>
@@ -823,480 +700,49 @@ function MessageRow({
   const isUser = message.role === 'user';
   if (isUser) {
     return (
-      <View style={styles.userRow}>
-        <View style={styles.userBubble}>
-          <Text style={styles.userBubbleText}>{message.content}</Text>
+      <MotiView
+        from={{ opacity: 0, translateX: 20 }}
+        animate={{ opacity: 1, translateX: 0 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 250 }}
+        className="items-end mb-4"
+      >
+        <View className="max-w-[75%] rounded-[18px] rounded-br-[4px] py-3 px-4" style={{ backgroundColor: colors.userBubble }}>
+          <Text className="text-[15px] leading-[22px]" style={{ color: colors.userText }}>{message.content}</Text>
         </View>
-      </View>
+      </MotiView>
     );
   }
   return (
-    <View style={styles.assistantRow}>
-      <View style={styles.dlAvatar}>
-        <Text style={styles.dlAvatarText}>DL</Text>
+    <MotiView
+      from={{ opacity: 0, translateX: -20 }}
+      animate={{ opacity: 1, translateX: 0 }}
+      transition={{ type: 'spring', damping: 20, stiffness: 250 }}
+      className="flex-row items-end mb-4 gap-2"
+    >
+      <View className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: colors.drLucasBubble }}>
+        <Text className="text-[12px] font-bold" style={{ color: colors.drLucasText }}>DL</Text>
       </View>
-      <View style={styles.assistantBubbleOuter}>
-        <View style={[styles.assistantBubble, connectionFallback && styles.assistantBubbleRetry]}>
-          <Text style={[styles.assistantBubbleText, connectionFallback && styles.assistantBubbleTextRetry]}>
+      <View className="max-w-[85%] flex-shrink">
+        <View
+          className="rounded-[18px] rounded-bl-[4px] py-3 px-4"
+          style={[
+            { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+            connectionFallback && { backgroundColor: colors.urgentLight, borderColor: colors.urgent },
+          ]}
+        >
+          <Text className="text-[15px] leading-[22px]" style={connectionFallback ? { color: colors.urgent, fontWeight: '600' } : { color: colors.textPrimary }}>
             {message.content}
           </Text>
+          <RichContent structured={message.structuredResponse} />
           {showDisclaimer ? (
-            <Text style={styles.bubbleDisclaimer}>
+            <Text className="text-[10px] leading-[14px] text-muted-foreground mt-2">
               Rapha helps you find care but does not replace a doctor.
             </Text>
           ) : null}
         </View>
       </View>
-    </View>
+    </MotiView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeTop: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  flex: { flex: 1 },
-  loadingScreen: {
-    flex: 1,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.background,
-  },
-  headerTitleWrap: { flex: 1 },
-  headerTitle: {
-    ...typography.h3,
-    fontSize: 20,
-  },
-  headerSubtitle: {
-    ...typography.bodySmall,
-    color: colors.textTertiary,
-    marginTop: 2,
-  },
-  headerActions: { flexDirection: 'row', alignItems: 'center' },
-  headerSideBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  disclaimer: {
-    ...typography.caption,
-    textAlign: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
-    color: colors.textTertiary,
-  },
-  list: { flex: 1 },
-  listContent: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    paddingTop: spacing.sm,
-    flexGrow: 1,
-  },
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-  },
-  emptyIconCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: colors.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  emptyGreeting: {
-    ...typography.h2,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  emptyLead: {
-    ...typography.body,
-    textAlign: 'center',
-    color: colors.textSecondary,
-    marginBottom: spacing.lg,
-  },
-  suggestionCol: { gap: spacing.sm, width: '100%' },
-  suggestionChip: {
-    alignSelf: 'stretch',
-    backgroundColor: colors.surface,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  suggestionChipText: {
-    ...typography.bodySmall,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  userRow: { alignItems: 'flex-end', marginBottom: spacing.md },
-  userBubble: {
-    maxWidth: '75%',
-    backgroundColor: colors.userBubble,
-    borderRadius: 18,
-    borderBottomRightRadius: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  userBubbleText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.userText,
-  },
-  assistantRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: spacing.md, gap: spacing.sm },
-  typingRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: spacing.md, gap: spacing.sm },
-  dlAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.drLucasBubble,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dlAvatarText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.drLucasText,
-  },
-  assistantBubbleOuter: { maxWidth: '85%', flexShrink: 1 },
-  assistantBubble: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  assistantBubbleRetry: {
-    backgroundColor: colors.urgentLight,
-    borderColor: colors.urgent,
-  },
-  assistantBubbleText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textPrimary,
-  },
-  assistantBubbleTextRetry: {
-    color: colors.urgent,
-    fontWeight: '600',
-  },
-  typingDotsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  typingDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.textTertiary,
-  },
-  bubbleDisclaimer: {
-    fontSize: 10,
-    lineHeight: 14,
-    color: colors.textTertiary,
-    marginTop: spacing.sm,
-  },
-  pinnedBar: {
-    backgroundColor: colors.mildLight,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.mild,
-    padding: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  pinnedBarPressed: { opacity: 0.9 },
-  pinnedBarTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.mild,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  pinnedBarSub: { ...typography.body, marginTop: 2, fontWeight: '600' },
-  pinnedBarHint: { ...typography.caption, marginTop: 4, color: colors.textSecondary },
-  mcqWrap: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.xs,
-  },
-  mcqScroll: { gap: spacing.sm, paddingVertical: 2 },
-  mcqChip: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginRight: spacing.sm,
-  },
-  mcqChipText: { ...typography.bodySmall, color: colors.textPrimary },
-  composerOuter: {
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
-  },
-  composerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: spacing.sm,
-  },
-  attachBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  input: {
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 22 * 4 + 24,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendBtnDisabled: {
-    backgroundColor: colors.borderStrong,
-  },
-  sendBtnPressed: {
-    backgroundColor: colors.accentDark,
-  },
-  actionCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    borderLeftWidth: 4,
-  },
-  actionCardEmergency: {
-    backgroundColor: colors.emergencyLight,
-    borderLeftColor: colors.emergency,
-  },
-  actionCardUrgent: {
-    backgroundColor: colors.urgentLight,
-    borderLeftColor: colors.urgent,
-  },
-  actionCardMild: {
-    backgroundColor: colors.mildLight,
-    borderLeftColor: colors.mild,
-  },
-  actionCardInfo: {
-    backgroundColor: colors.infoLight,
-    borderLeftColor: colors.info,
-  },
-  actionCardSelf: {
-    backgroundColor: colors.background,
-    borderLeftColor: colors.textTertiary,
-  },
-  actionTitleEmergency: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.emergency,
-  },
-  actionTitleUrgent: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.urgent,
-  },
-  actionTitleMild: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.mild,
-  },
-  actionTitleInfo: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.info,
-  },
-  actionTitleSelf: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  actionBody: {
-    ...typography.body,
-    marginTop: spacing.sm,
-  },
-  actionBodySmall: {
-    ...typography.bodySmall,
-    marginTop: spacing.xs,
-  },
-  actionGap: { height: spacing.sm },
-  actionGapSm: { height: spacing.sm },
-  actionGapLg: { height: spacing.md },
-  confidenceWrap: { gap: 6 },
-  confidenceTrackSingle: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.border,
-    overflow: 'hidden',
-  },
-  confidenceFillSingle: {
-    height: '100%',
-    backgroundColor: colors.accent,
-    borderRadius: 4,
-  },
-  confidencePct: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  btnEmergencyFill: {
-    backgroundColor: colors.emergency,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  btnEmergencyFillText: {
-    color: colors.textOnEmergency,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  btnEmergencyOutline: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.emergency,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  btnEmergencyOutlineText: {
-    color: colors.emergency,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  btnUrgentFill: {
-    backgroundColor: colors.urgent,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  btnUrgentFillText: {
-    color: colors.textOnAccent,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  btnUrgentOutline: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.urgent,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  btnUrgentOutlineText: {
-    color: colors.urgent,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  btnMildFill: {
-    backgroundColor: colors.mild,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  btnMildFillText: {
-    color: colors.textOnAccent,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
-  drugChip: {
-    backgroundColor: colors.accentLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-  },
-  drugChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.accentDark,
-  },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  stepNum: { ...typography.label, width: 22 },
-  stepBody: { flex: 1 },
-  stepCheck: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    marginTop: 2,
-  },
-  btnInfoFill: {
-    backgroundColor: colors.info,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  btnInfoFillText: {
-    color: colors.textOnAccent,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  btnSelfOutline: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  btnSelfOutlineText: {
-    color: colors.textSecondary,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  bulletLine: {
-    ...typography.bodySmall,
-    marginTop: spacing.xs,
-  },
-});
+

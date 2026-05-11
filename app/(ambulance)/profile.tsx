@@ -1,16 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 
 import { supabase } from '../../src/lib/supabase';
-
-const DARK = '#0A0F1C';
-const DARK2 = '#111827';
-const RED = '#DC2626';
-const TEAL = '#00C2A8';
-const MUTED = '#94A3B8';
-const WHITE = '#F1F5F9';
 
 interface DeviceInfo {
   id: string; pairing_code: string; vehicle_plate: string | null;
@@ -39,29 +32,35 @@ export default function AmbulanceProfile() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.heading}>Ambulance Profile</Text>
+    <SafeAreaView className="flex-1 bg-background">
+      <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+        <Text className="text-[22px] font-bold text-foreground">Ambulance Profile</Text>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>Vehicle Information</Text>
-          <Row label="Pairing code"   value={device?.pairing_code ?? '—'} />
-          <Row label="Vehicle plate"  value={device?.vehicle_plate ?? '—'} />
-          <Row label="Hospital"       value={device?.hospital_name ?? '—'} />
+        <View className="bg-card rounded-2xl border border-border p-4 gap-3">
+          <Text className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Vehicle Information</Text>
+          <Row label="Pairing code"  value={device?.pairing_code ?? '—'} />
+          <Row label="Vehicle plate" value={device?.vehicle_plate ?? '—'} />
+          <Row label="Hospital"      value={device?.hospital_name ?? '—'} />
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>Driver</Text>
+        <View className="bg-card rounded-2xl border border-border p-4 gap-3">
+          <Text className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Driver</Text>
           <Row label="Name"  value={device?.driver_name ?? '—'} />
           <Row label="Phone" value={device?.driver_phone ?? '—'} />
         </View>
 
-        <Pressable style={styles.switchBtn} onPress={switchToPatient}>
-          <Text style={styles.switchBtnText}>🔄  Switch to Patient Mode</Text>
+        <Pressable
+          className="rounded-2xl border border-primary/30 bg-primary/10 py-4 items-center"
+          onPress={switchToPatient}
+        >
+          <Text className="text-primary text-[15px] font-bold">🔄  Switch to Patient Mode</Text>
         </Pressable>
 
-        <Pressable style={styles.signOutBtn} onPress={() => void signOut()}>
-          <Text style={styles.signOutBtnText}>Go Offline &amp; Sign Out</Text>
+        <Pressable
+          className="rounded-2xl border border-destructive/30 bg-destructive/10 py-4 items-center"
+          onPress={() => void signOut()}
+        >
+          <Text className="text-destructive text-[15px] font-bold">Go Offline &amp; Sign Out</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -70,24 +69,9 @@ export default function AmbulanceProfile() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+    <View className="flex-row justify-between">
+      <Text className="text-[13px] text-muted-foreground">{label}</Text>
+      <Text className="text-[13px] text-foreground font-semibold max-w-[60%] text-right">{value}</Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: DARK },
-  scroll: { padding: 20, gap: 16 },
-  heading: { fontSize: 22, fontWeight: '700', color: WHITE },
-  card: { backgroundColor: DARK2, borderRadius: 16, padding: 16, gap: 12 },
-  sectionLabel: { fontSize: 11, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: '600', marginBottom: 4 },
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
-  rowLabel: { fontSize: 13, color: MUTED },
-  rowValue: { fontSize: 13, color: WHITE, fontWeight: '600', maxWidth: '60%', textAlign: 'right' },
-  switchBtn: { backgroundColor: 'rgba(0,194,168,0.12)', borderRadius: 12, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0,194,168,0.3)' },
-  switchBtnText: { color: TEAL, fontSize: 15, fontWeight: '700' },
-  signOutBtn: { backgroundColor: 'rgba(220,38,38,0.12)', borderRadius: 12, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(220,38,38,0.3)' },
-  signOutBtnText: { color: RED, fontSize: 15, fontWeight: '700' },
-});

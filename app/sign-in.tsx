@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session } from '@supabase/supabase-js';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
 import { Ambulance, Eye, EyeOff, Stethoscope } from 'lucide-react-native';
 import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -18,45 +20,47 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenErrorBoundary } from '../src/components/ScreenErrorBoundary';
+import { type SignInForm, signInSchema } from '../src/lib/schemas';
 import { hasSupabaseConfig, supabase } from '../src/lib/supabase';
 import { colors, fonts, radius, spacing, typography } from '../src/theme';
 
 export default function SignInScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [ambModal, setAmbModal] = useState(false);
   const [ambKey, setAmbKey] = useState('');
   const [ambBusy, setAmbBusy] = useState(false);
   const [ambError, setAmbError] = useState('');
 
-  async function signIn() {
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SignInForm>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  async function signIn(data: SignInForm) {
     setError('');
     if (!hasSupabaseConfig || !supabase) {
       setError('App configuration is incomplete. Please try again later.');
       return;
     }
-    const emailTrim = email.trim();
-    if (!emailTrim || !password) {
-      setError('Enter your email and password.');
-      return;
-    }
-    setBusy(true);
+    const emailTrim = data.email.trim();
     try {
-      const { data, error: signErr } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: signErr } = await supabase.auth.signInWithPassword({
         email: emailTrim,
-        password,
+        password: data.password,
       });
       if (signErr) {
         setError(signErr.message);
         return;
       }
 
-      let activeSession: Session | null = data.session ?? null;
+      let activeSession: Session | null = authData.session ?? null;
       if (!activeSession) {
         const { data: refreshed, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) {
@@ -82,7 +86,7 @@ export default function SignInScreen() {
 
       router.replace(profileRow ? '/(drawer)/dashboard' : '/onboarding');
     } finally {
-      setBusy(false);
+      // react-hook-form handles submitting state
     }
   }
 
@@ -136,27 +140,42 @@ export default function SignInScreen() {
             <Text style={styles.lead}>Sign in to continue</Text>
 
             <Text style={styles.label}>Email address</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              style={styles.input}
-              placeholder="you@example.com"
-              placeholderTextColor={colors.textTertiary}
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { onChange, value, onBlur } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  style={styles.input}
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.textTertiary}
+                />
+              )}
             />
+            {errors.email?.message ? <Text style={styles.fieldError}>{errors.email.message}</Text> : null}
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordRow}>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoComplete="password"
-                style={styles.inputPassword}
-                placeholder="••••••••"
-                placeholderTextColor={colors.textTertiary}
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, value, onBlur } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    secureTextEntry={!showPassword}
+                    autoComplete="password"
+                    style={styles.inputPassword}
+                    placeholder="••••••••"
+                    placeholderTextColor={colors.textTertiary}
+                  />
+                )}
               />
               <Pressable
                 accessibilityRole="button"
@@ -171,15 +190,16 @@ export default function SignInScreen() {
                 )}
               </Pressable>
             </View>
+            {errors.password?.message ? <Text style={styles.fieldError}>{errors.password.message}</Text> : null}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <Pressable
-              style={[styles.primaryBtn, busy && styles.primaryBtnDisabled]}
-              onPress={signIn}
-              disabled={busy}
+              style={[styles.primaryBtn, isSubmitting && styles.primaryBtnDisabled]}
+              onPress={handleSubmit(signIn)}
+              disabled={isSubmitting}
             >
-              {busy ? (
+              {isSubmitting ? (
                 <ActivityIndicator color={colors.textOnAccent} />
               ) : (
                 <Text style={styles.primaryBtnText}>Sign in</Text>
@@ -339,6 +359,13 @@ const styles = StyleSheet.create({
     color: colors.error,
     marginBottom: spacing.sm,
     lineHeight: 20,
+  },
+  fieldError: {
+    fontSize: 12,
+    fontFamily: fonts.body,
+    color: colors.error,
+    marginTop: -6,
+    marginBottom: spacing.sm,
   },
   primaryBtn: {
     backgroundColor: colors.primary,

@@ -571,10 +571,10 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.canvas },
+  safe: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingBottom: spacing.xxl },
   hero: {
-    backgroundColor: colors.surfaceDark,
+    backgroundColor: colors.primary,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     padding: 24,
@@ -585,13 +585,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.surfaceDarkElevated,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarLetter: { fontSize: 22, fontWeight: '600', color: colors.onDark },
+  avatarLetter: { fontSize: 22, fontWeight: '700', color: colors.textOnAccent },
   userText: { flex: 1 },
-  userName: { fontSize: 18, fontWeight: '600', color: colors.onDark },
+  userName: { fontSize: 18, fontWeight: '700', color: colors.onDark },
   userEmail: { fontSize: 13, color: colors.onDarkSoft, marginTop: 4 },
   editProfileBtn: {
     marginTop: 16,
@@ -603,8 +603,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
-  editProfileText: { fontSize: 13, color: colors.onDark, fontWeight: '500' },
-  saved: { marginTop: 8, fontSize: 13, color: colors.accentTeal },
+  editProfileText: { fontSize: 13, color: colors.onDark, fontWeight: '600' },
+  saved: { marginTop: 8, fontSize: 13, color: colors.accent, fontWeight: '600' },
   section: { paddingHorizontal: spacing.md, marginBottom: spacing.lg },
   sectionHead: {
     flexDirection: 'row',
@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.dangerSoft,
+    borderColor: '#FEE2E2',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',

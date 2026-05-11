@@ -282,3 +282,21 @@ OpenRouter/DeepSeek and Anthropic Claude are **not** used here.
 - Composer row reverted to classic attach/input/send layout with safe bottom padding (`34` iOS / `16` Android).
 - Restored static centered disclaimer line above composer.
 - Kept existing chat/session/triage wiring logic (no backend flow changes).
+
+---
+
+## 2026-05-08 — Part 2 UI rebuild (dashboard, history, settings)
+
+### Dashboard (`app/(drawer)/dashboard.tsx`)
+
+- Refined severity badge + session severity pills to match the Part 2 spec (critical/red, urgent/amber, mild/teal).
+- Bell notification dot uses `colors.accent` (teal) for “active session” state.
+
+### History (`app/(drawer)/history.tsx`)
+
+- Kept grouped sections and inline expand thread; styles are aligned to the Part 2 spacing/border tokens.
+
+### Settings (`app/(drawer)/settings.tsx`)
+
+- Settings header now uses `colors.primary` navy with teal avatar circle and “Edit Profile” button styling per spec.
+- Sign-out button uses a light red border (`#FEE2E2`) with red text.

@@ -1,7 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, type ViewStyle } from 'react-native';
-
-import { colors } from '../theme';
+import { MotiView } from 'moti';
+import type { ViewStyle } from 'react-native';
 
 type Props = {
   width: ViewStyle['width'];
@@ -10,28 +8,13 @@ type Props = {
 };
 
 export function Skeleton({ width, height, radius = 8 }: Props) {
-  const opacity = useRef(new Animated.Value(0.4)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.4, duration: 800, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [opacity]);
-
   return (
-    <Animated.View
-      style={[styles.base, { width, height, borderRadius: radius, opacity }]}
+    <MotiView
+      style={{ width, height, borderRadius: radius }}
+      className="bg-border"
+      from={{ opacity: 0.4 }}
+      animate={{ opacity: [0.4, 1, 0.4] }}
+      transition={{ type: 'timing', duration: 1600, loop: true }}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    backgroundColor: colors.border,
-  },
-});

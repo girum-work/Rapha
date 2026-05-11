@@ -2,21 +2,13 @@
 
 **As of:** 2026-05-05
 
-## Status: Part 1 complete (theme + home chat + drawer)
+## Status: Part 2 complete (dashboard + history + settings)
 
-### Delivered in this step
+### Delivered in this step (Part 2)
 
-1. **Theme tokens (`src/theme.ts`)**
-   - Applied requested Part 1 palette (`#0A1628`, `#00C2A8`, `#F8FAFC`, etc.).
-2. **Home chat (`app/(drawer)/index.tsx`)**
-   - Header now matches Part 1 shape (left title/subtitle, right camera + overflow).
-   - Composer switched back to attach/input/send row with safe bottom padding.
-   - Restored static disclaimer above input.
-   - Existing session + triage wiring preserved.
-3. **Drawer (`app/(drawer)/_layout.tsx`)**
-   - Removed bottom-tab overlay that was covering the chatbox.
-   - Rebuilt navy drawer content with active states and footer badge.
-   - Drawer navigation remains the primary container.
+1. **Dashboard (`app/(drawer)/dashboard.tsx`)** — aligned severity pills and bell dot behavior to the Part 2 spec.
+2. **History (`app/(drawer)/history.tsx`)** — grouped history + inline expand thread preserved, tuned styling to Part 2 tokens.
+3. **Settings (`app/(drawer)/settings.tsx`)** — unified settings header (navy) + teal avatar and sign-out styling.
 
 ### Validation
 
@@ -26,4 +18,4 @@
 
 ### Next
 
-- Proceed to Part 2 prompt.
+- Proceed to Part 3 prompt.

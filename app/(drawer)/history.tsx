@@ -13,7 +13,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   UIManager,
@@ -24,62 +23,35 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Skeleton } from '../../src/components/Skeleton';
 import { formatRelative } from '../../src/lib/dateUtils';
 import { hasSupabaseConfig, supabase } from '../../src/lib/supabase';
-import { colors, radius, spacing, typography } from '../../src/theme';
+import { colors } from '../../src/theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-type ChatMsg = {
-  id?: string;
-  content: string;
-  role: string;
-  created_at: string;
-};
-
+type ChatMsg = { id?: string; content: string; role: string; created_at: string };
 type ChatSessionRow = {
-  id: string;
-  status: string;
-  started_at: string;
-  final_action: string | null;
-  final_severity: 'critical' | 'urgent' | 'mild' | null;
+  id: string; status: string; started_at: string;
+  final_action: string | null; final_severity: 'critical' | 'urgent' | 'mild' | null;
   chat_messages?: ChatMsg[] | null;
 };
 
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function isToday(d: Date) {
-  return startOfDay(d).getTime() === startOfDay(new Date()).getTime();
-}
-
+function startOfDay(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function isToday(d: Date) { return startOfDay(d).getTime() === startOfDay(new Date()).getTime(); }
 function isYesterday(d: Date) {
-  const y = new Date();
-  y.setDate(y.getDate() - 1);
+  const y = new Date(); y.setDate(y.getDate() - 1);
   return startOfDay(d).getTime() === startOfDay(y).getTime();
 }
-
-function subDays(d: Date, n: number) {
-  const x = new Date(d);
-  x.setDate(x.getDate() - n);
-  return x;
-}
+function subDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate() - n); return x; }
 
 function groupSessions(sessions: ChatSessionRow[]) {
-  const today = new Date();
-  const weekAgo = subDays(today, 7);
-  const grouped = {
-    today: [] as ChatSessionRow[],
-    yesterday: [] as ChatSessionRow[],
-    thisWeek: [] as ChatSessionRow[],
-    earlier: [] as ChatSessionRow[],
-  };
+  const today = new Date(); const weekAgo = subDays(today, 7);
+  const grouped = { today: [] as ChatSessionRow[], yesterday: [] as ChatSessionRow[], thisWeek: [] as ChatSessionRow[], earlier: [] as ChatSessionRow[] };
   for (const s of sessions) {
     const d = new Date(s.started_at);
     if (isToday(d)) grouped.today.push(s);
     else if (isYesterday(d)) grouped.yesterday.push(s);
-    else if (d.getTime() > weekAgo.getTime() && !isToday(d) && !isYesterday(d)) grouped.thisWeek.push(s);
+    else if (d.getTime() > weekAgo.getTime()) grouped.thisWeek.push(s);
     else grouped.earlier.push(s);
   }
   return grouped;
@@ -87,39 +59,22 @@ function groupSessions(sessions: ChatSessionRow[]) {
 
 function firstUserLine(messages: ChatMsg[] | undefined): string {
   if (!messages?.length) return '';
-  const sorted = [...messages].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
-  const u = sorted.find((m) => m.role === 'user');
-  return u?.content ?? '';
+  const sorted = [...messages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  return sorted.find((m) => m.role === 'user')?.content ?? '';
 }
 
 function subtitleFor(session: ChatSessionRow): string {
-  const fa = session.final_action;
   if (session.status === 'active' || session.status === 'deferred') return 'In progress...';
-  switch (fa) {
-    case 'emergency':
-      return 'Emergency care recommended';
-    case 'hospital':
-      return 'Hospital visit recommended';
-    case 'clinic':
-      return 'Clinic visit recommended';
-    case 'pharmacy':
-      return 'Pharmacy referral';
-    case 'first_aid':
-      return 'First aid guidance';
-    case 'self_care':
-      return 'Home monitoring advised';
-    case 'ask_more':
-      return 'More detail needed';
-    default:
-      return 'Consultation';
-  }
+  const map: Record<string, string> = {
+    emergency: 'Emergency care recommended', hospital: 'Hospital visit recommended',
+    clinic: 'Clinic visit recommended', pharmacy: 'Pharmacy referral',
+    first_aid: 'First aid guidance', self_care: 'Home monitoring advised', ask_more: 'More detail needed',
+  };
+  return map[session.final_action ?? ''] ?? 'Consultation';
 }
 
 function circleStyle(session: ChatSessionRow): { bg: string; glyph: string } {
-  const fa = session.final_action;
-  const sev = session.final_severity;
+  const fa = session.final_action; const sev = session.final_severity;
   if (fa === 'pharmacy') return { bg: colors.accentLight, glyph: '💊' };
   if (fa === 'first_aid') return { bg: colors.infoLight, glyph: '🩹' };
   if (sev === 'critical') return { bg: colors.emergencyLight, glyph: '🚨' };
@@ -138,18 +93,10 @@ export default function HistoryScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    if (!hasSupabaseConfig || !supabase) {
-      setSessions([]);
-      setLoading(false);
-      return;
-    }
+    if (!hasSupabaseConfig || !supabase) { setSessions([]); setLoading(false); return; }
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData.user?.id;
-    if (!uid) {
-      setSessions([]);
-      setLoading(false);
-      return;
-    }
+    if (!uid) { setSessions([]); setLoading(false); return; }
     const { data } = await supabase
       .from('chat_sessions')
       .select('id, status, started_at, final_action, final_severity, chat_messages(id, content, role, created_at)')
@@ -159,9 +106,7 @@ export default function HistoryScreen() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -180,21 +125,19 @@ export default function HistoryScreen() {
   }
 
   const sections: { key: keyof ReturnType<typeof groupSessions>; label: string }[] = [
-    { key: 'today', label: 'Today' },
-    { key: 'yesterday', label: 'Yesterday' },
-    { key: 'thisWeek', label: 'This week' },
-    { key: 'earlier', label: 'Earlier' },
+    { key: 'today', label: 'Today' }, { key: 'yesterday', label: 'Yesterday' },
+    { key: 'thisWeek', label: 'This week' }, { key: 'earlier', label: 'Earlier' },
   ];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.h2}>History</Text>
-        <Text style={styles.sub}>Your consultations with Dr Lucas</Text>
-        <View style={styles.search}>
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+      <View className="px-4 pb-2 gap-1">
+        <Text className="text-[26px] font-bold text-foreground">History</Text>
+        <Text className="text-[13px] text-muted-foreground">Your consultations with Dr Lucas</Text>
+        <View className="flex-row items-center gap-2 bg-card border border-border rounded-xl px-4 mt-3 min-h-[44px]">
           <Search size={18} color={colors.textTertiary} strokeWidth={2} />
           <TextInput
-            style={styles.searchInput}
+            className="flex-1 text-[15px] text-foreground py-[10px]"
             placeholder="Search consultations..."
             placeholderTextColor={colors.textTertiary}
             value={query}
@@ -204,23 +147,26 @@ export default function HistoryScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.skeletonCol}>
+        <View className="px-4 pt-4 gap-4">
           <Skeleton width="100%" height={80} radius={12} />
           <Skeleton width="92%" height={56} radius={12} />
           <Skeleton width="88%" height={56} radius={12} />
         </View>
       ) : sessions.length === 0 ? (
-        <View style={styles.empty}>
+        <View className="flex-1 items-center justify-center px-8 gap-2">
           <MessageSquare size={48} color={colors.textTertiary} strokeWidth={1.5} />
-          <Text style={styles.emptyTitle}>No consultations yet</Text>
-          <Text style={styles.emptySub}>Your conversation history with Dr Lucas will appear here</Text>
-          <Pressable style={styles.emptyBtn} onPress={() => router.push('/(drawer)/')}>
-            <Text style={styles.emptyBtnText}>Start your first consultation</Text>
+          <Text className="text-[18px] font-bold text-foreground mt-4">No consultations yet</Text>
+          <Text className="text-[14px] text-muted-foreground text-center">Your conversation history will appear here</Text>
+          <Pressable
+            className="mt-6 bg-primary px-8 py-[14px] rounded-2xl"
+            onPress={() => router.push('/(drawer)/')}
+          >
+            <Text className="text-primary-foreground font-bold text-[15px]">Start your first consultation</Text>
           </Pressable>
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.md }]}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
           showsVerticalScrollIndicator={false}
         >
           {sections.map(({ key, label }) => {
@@ -228,7 +174,9 @@ export default function HistoryScreen() {
             if (!rows.length) return null;
             return (
               <View key={key}>
-                <Text style={styles.sectionLabel}>{label}</Text>
+                <Text className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pl-4 mt-5 mb-2">
+                  {label}
+                </Text>
                 {rows.map((session) => (
                   <SessionRowItem
                     key={session.id}
@@ -246,85 +194,59 @@ export default function HistoryScreen() {
   );
 }
 
-function SessionRowItem({
-  session,
-  expanded,
-  onToggle,
-}: {
-  session: ChatSessionRow;
-  expanded: boolean;
-  onToggle: () => void;
+function SessionRowItem({ session, expanded, onToggle }: {
+  session: ChatSessionRow; expanded: boolean; onToggle: () => void;
 }) {
   const router = useRouter();
-  const title =
-    firstUserLine(session.chat_messages ?? undefined) ||
-    `Consultation ${new Date(session.started_at).toLocaleDateString()}`;
+  const title = firstUserLine(session.chat_messages ?? undefined) || `Consultation ${new Date(session.started_at).toLocaleDateString()}`;
   const sub = subtitleFor(session);
   const { bg, glyph } = circleStyle(session);
-  const msgs = session.chat_messages ?? [];
-  const sorted = [...msgs].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
+  const sorted = [...(session.chat_messages ?? [])].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   const tail = sorted.slice(-6);
-
   const showResume = session.status === 'active' || session.status === 'deferred';
 
   return (
-    <View style={styles.rowOuter}>
-      <Pressable style={styles.row} onPress={onToggle}>
-        <View style={[styles.sevCircle, { backgroundColor: bg }]}>
-          <Text style={styles.sevGlyph}>{glyph}</Text>
+    <View className="mx-4 mb-2 bg-card rounded-xl overflow-hidden border border-border">
+      <Pressable className="flex-row items-center p-4 gap-3" onPress={onToggle}>
+        <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: bg }}>
+          <Text className="text-[18px]">{glyph}</Text>
         </View>
-        <View style={styles.rowCenter}>
-          <Text style={styles.rowTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.rowSub} numberOfLines={1}>
-            {sub}
-          </Text>
-          <Text style={styles.rowTime}>{formatRelative(session.started_at)}</Text>
+        <View className="flex-1">
+          <Text className="text-[14px] font-bold text-foreground" numberOfLines={1}>{title}</Text>
+          <Text className="text-[13px] text-muted-foreground mt-0.5" numberOfLines={1}>{sub}</Text>
+          <Text className="text-[12px] text-muted-foreground/60 mt-1">{formatRelative(session.started_at)}</Text>
         </View>
-        <View style={styles.rowRight}>
+        <View className="items-end gap-1.5">
           <StatusBadge status={session.status} />
-          {expanded ? (
-            <ChevronDown size={18} color={colors.textTertiary} />
-          ) : (
-            <ChevronRight size={18} color={colors.textTertiary} />
-          )}
+          {expanded ? <ChevronDown size={18} color={colors.textTertiary} /> : <ChevronRight size={18} color={colors.textTertiary} />}
         </View>
       </Pressable>
 
       {expanded ? (
-        <View style={styles.thread}>
+        <View className="px-4 pb-4 border-t border-border gap-2">
           {tail.map((m, idx) =>
             m.role === 'user' ? (
-              <View key={m.id ?? `${session.id}-u-${idx}`} style={styles.msgUserOuter}>
-                <View style={styles.msgUser}>
-                  <Text style={styles.msgUserText}>{m.content}</Text>
+              <View key={m.id ?? `${session.id}-u-${idx}`} className="items-end">
+                <View className="max-w-[85%] rounded-2xl py-[10px] px-[14px]" style={{ backgroundColor: colors.userBubble }}>
+                  <Text className="text-[13px] leading-[18px]" style={{ color: colors.userText }}>{m.content}</Text>
                 </View>
               </View>
             ) : (
-              <View key={m.id ?? `${session.id}-a-${idx}`} style={styles.msgAsstOuter}>
-                <View style={styles.msgAsst}>
-                  <Text style={styles.msgAsstText}>{m.content}</Text>
+              <View key={m.id ?? `${session.id}-a-${idx}`} className="items-start">
+                <View className="max-w-[85%] bg-card border border-border rounded-2xl py-[10px] px-[14px]">
+                  <Text className="text-[13px] text-foreground leading-[18px]">{m.content}</Text>
                 </View>
               </View>
             ),
           )}
-          <View style={styles.threadActions}>
+          <View className="flex-row gap-3 mt-2 justify-end">
             {showResume ? (
-              <Pressable
-                style={styles.resumeBtn}
-                onPress={() => router.push({ pathname: '/(drawer)/', params: { openSession: session.id } })}
-              >
-                <Text style={styles.resumeText}>Resume →</Text>
+              <Pressable className="py-2 px-3" onPress={() => router.push({ pathname: '/(drawer)/', params: { openSession: session.id } })}>
+                <Text className="text-[13px] font-bold text-primary">Resume →</Text>
               </Pressable>
             ) : null}
-            <Pressable
-              style={styles.viewBtn}
-              onPress={() => router.push({ pathname: '/(drawer)/', params: { openSession: session.id } })}
-            >
-              <Text style={styles.viewText}>View full</Text>
+            <Pressable className="py-2 px-3" onPress={() => router.push({ pathname: '/(drawer)/', params: { openSession: session.id } })}>
+              <Text className="text-[13px] font-semibold text-muted-foreground">View full</Text>
             </Pressable>
           </View>
         </View>
@@ -334,162 +256,20 @@ function SessionRowItem({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'active') {
-    return (
-      <View style={[styles.badge, { backgroundColor: colors.accentLight }]}>
-        <Text style={[styles.badgeText, { color: colors.accentDark }]}>Active</Text>
-      </View>
-    );
-  }
-  if (status === 'deferred') {
-    return (
-      <View style={[styles.badge, { backgroundColor: colors.urgentLight }]}>
-        <Clock size={14} color={colors.urgent} strokeWidth={2} />
-      </View>
-    );
-  }
-  if (status === 'completed') {
-    return (
-      <View style={[styles.badge, { backgroundColor: colors.mildLight }]}>
-        <Check size={14} color={colors.mild} strokeWidth={3} />
-      </View>
-    );
-  }
+  if (status === 'active') return (
+    <View className="min-w-[28px] h-6 px-2 rounded-full items-center justify-center flex-row" style={{ backgroundColor: colors.accentLight }}>
+      <Text className="text-[11px] font-bold" style={{ color: colors.accentDark }}>Active</Text>
+    </View>
+  );
+  if (status === 'deferred') return (
+    <View className="min-w-[28px] h-6 px-2 rounded-full items-center justify-center flex-row" style={{ backgroundColor: colors.urgentLight }}>
+      <Clock size={14} color={colors.urgent} strokeWidth={2} />
+    </View>
+  );
+  if (status === 'completed') return (
+    <View className="min-w-[28px] h-6 px-2 rounded-full items-center justify-center flex-row" style={{ backgroundColor: colors.mildLight }}>
+      <Check size={14} color={colors.mild} strokeWidth={3} />
+    </View>
+  );
   return null;
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  header: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    gap: spacing.xs,
-  },
-  h2: { ...typography.h2 },
-  sub: { fontSize: 13, color: colors.textSecondary },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.md,
-    minHeight: 44,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.textPrimary,
-    paddingVertical: 10,
-  },
-  skeletonCol: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.md },
-  scroll: { paddingBottom: spacing.xxl, paddingHorizontal: 0 },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    paddingLeft: 16,
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  rowOuter: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    gap: 12,
-  },
-  sevCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sevGlyph: { fontSize: 18 },
-  rowCenter: { flex: 1 },
-  rowTitle: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-  rowSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-  rowTime: { fontSize: 12, color: colors.textTertiary, marginTop: 4 },
-  rowRight: { alignItems: 'flex-end', gap: 6 },
-  badge: {
-    minWidth: 28,
-    height: 24,
-    paddingHorizontal: 8,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  badgeText: { fontSize: 11, fontWeight: '700' },
-  thread: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: 8,
-  },
-  msgUserOuter: { alignItems: 'flex-end' },
-  msgUser: {
-    maxWidth: '85%',
-    backgroundColor: colors.userBubble,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  msgUserText: { fontSize: 13, color: colors.userText, lineHeight: 18 },
-  msgAsstOuter: { alignItems: 'flex-start' },
-  msgAsst: {
-    maxWidth: '85%',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  msgAsstText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
-  threadActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-    justifyContent: 'flex-end',
-  },
-  resumeBtn: { paddingVertical: 8, paddingHorizontal: 12 },
-  resumeText: { fontSize: 13, fontWeight: '700', color: colors.accent },
-  viewBtn: { paddingVertical: 8, paddingHorizontal: 12 },
-  viewText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    gap: spacing.sm,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary, marginTop: spacing.md },
-  emptySub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
-  emptyBtn: {
-    marginTop: spacing.lg,
-    backgroundColor: colors.accent,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: 14,
-    borderRadius: radius.md,
-  },
-  emptyBtnText: { color: colors.textOnAccent, fontWeight: '700', fontSize: 15 },
-});

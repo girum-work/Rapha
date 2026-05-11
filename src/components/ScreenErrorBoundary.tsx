@@ -1,7 +1,5 @@
 import React, { type ErrorInfo, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { colors, radius, spacing, typography } from '../theme';
+import { Pressable, Text, View } from 'react-native';
 
 type Props = { children: ReactNode };
 
@@ -28,12 +26,16 @@ export class ScreenErrorBoundary extends React.Component<Props, State> {
   override render() {
     if (this.state.hasError) {
       return (
-        <View style={styles.root}>
-          <Text style={styles.emoji}>😔</Text>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.body}>Pull down to refresh or tap below to try again.</Text>
-          <Pressable style={styles.btn} onPress={this.handleRetry}>
-            <Text style={styles.btnText}>Try again</Text>
+        <View className="flex-1 items-center justify-center bg-background px-6">
+          <Text className="text-[40px]">😔</Text>
+          <Text className="mt-4 text-center text-[22px] font-semibold text-foreground">
+            Something went wrong
+          </Text>
+          <Text className="mt-2 text-center text-[14px] leading-5 text-foreground/70">
+            Pull down to refresh or tap below to try again.
+          </Text>
+          <Pressable className="mt-6 rounded-2xl bg-primary px-6 py-3" onPress={this.handleRetry}>
+            <Text className="text-[14px] font-semibold text-primary-foreground">Try again</Text>
           </Pressable>
         </View>
       );
@@ -41,36 +43,3 @@ export class ScreenErrorBoundary extends React.Component<Props, State> {
     return this.props.children;
   }
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
-    backgroundColor: colors.background,
-  },
-  emoji: { fontSize: 40 },
-  title: {
-    ...typography.h2,
-    marginTop: spacing.md,
-    textAlign: 'center',
-  },
-  body: {
-    ...typography.bodySmall,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
-  btn: {
-    marginTop: spacing.lg,
-    backgroundColor: colors.accent,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radius.md,
-  },
-  btnText: {
-    ...typography.authCta,
-    color: colors.textOnAccent,
-  },
-});

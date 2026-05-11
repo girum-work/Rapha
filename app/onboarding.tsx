@@ -1,7 +1,9 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Camera, ChevronRight, X } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import {
   Image,
   KeyboardAvoidingView,
@@ -20,6 +22,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenErrorBoundary } from '../src/components/ScreenErrorBoundary';
 import { useToast } from '../src/context/ToastContext';
 import { formatAuthProfileError, getCurrentSession, saveOnboardingProfile } from '../src/lib/authProfile';
+import {
+  type OnboardingStep1,
+  type OnboardingStep1Form,
+  type OnboardingStep3,
+  type OnboardingStep3Form,
+  onboardingStep1Schema,
+  onboardingStep3Schema,
+} from '../src/lib/schemas';
 import { hasSupabaseConfig, supabase } from '../src/lib/supabase';
 import { colors, fonts, radius, spacing, typography } from '../src/theme';
 
@@ -152,22 +162,40 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState(0);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [age, setAge] = useState('');
   const [bloodType, setBloodType] = useState('');
   const [bloodModal, setBloodModal] = useState(false);
   const [allergies, setAllergies] = useState<string[]>([]);
   const [medications, setMedications] = useState<string[]>([]);
   const [chronic, setChronic] = useState<string[]>([]);
-  const [emergencyName, setEmergencyName] = useState('');
-  const [emergencyPhone, setEmergencyPhone] = useState('');
   const [locationConsent, setLocationConsent] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const {
+    control: step1Control,
+    handleSubmit: handleStep1Submit,
+    watch: watchStep1,
+    formState: { errors: step1Errors },
+  } = useForm<OnboardingStep1Form>({
+    resolver: zodResolver(onboardingStep1Schema),
+    defaultValues: { name: '', age: 18 as any, blood_type: undefined },
+  });
+
+  const {
+    control: step3Control,
+    handleSubmit: handleStep3Submit,
+    watch: watchStep3,
+    setValue: setStep3Value,
+    formState: { errors: step3Errors },
+  } = useForm<OnboardingStep3Form>({
+    resolver: zodResolver(onboardingStep3Schema),
+    defaultValues: { emergency_contact_name: '', emergency_contact_phone: '', location_consent: false },
+  });
+
   const parsedAge = useMemo(() => {
-    const n = Number(age);
+    const ageRaw = watchStep1('age');
+    const n = typeof ageRaw === 'number' ? ageRaw : Number(ageRaw);
     return Number.isFinite(n) && n > 0 && n < 130 ? n : null;
-  }, [age]);
+  }, [watchStep1]);
 
   const pickPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -184,49 +212,15 @@ export default function OnboardingScreen() {
     if (!r.canceled && r.assets[0]) setPhotoUri(r.assets[0].uri);
   }, [showToast]);
 
-  const validateStep0 = () => {
-    if (!name.trim()) return 'Add your full name to continue.';
-    if (parsedAge == null) return 'Add a valid age.';
-    if (!bloodType.trim()) return 'Choose your blood type.';
-    return null;
-  };
-
-  const validateStep2 = () => {
-    if (!emergencyName.trim() || !emergencyPhone.trim()) {
-      return 'Add emergency contact name and phone.';
-    }
-    const digits = emergencyPhone.replace(/\s/g, '');
-    if (!/^09\d{8}$/.test(digits)) {
-      return 'Use an Ethiopian mobile number like 09XXXXXXXX.';
-    }
-    return null;
-  };
-
   const goNext = () => {
-    if (step === 0) {
-      const e = validateStep0();
-      if (e) {
-        showToast(e, 'error');
-        return;
-      }
-      setStep(1);
-      return;
-    }
-    if (step === 1) {
-      setStep(2);
-    }
+    if (step === 1) setStep(2);
   };
 
   const goBack = () => {
     if (step > 0) setStep((s) => s - 1);
   };
 
-  async function complete() {
-    const e = validateStep2();
-    if (e) {
-      showToast(e, 'error');
-      return;
-    }
+  async function complete(data: OnboardingStep3Form) {
     if (!hasSupabaseConfig || !supabase) {
       showToast('App configuration is incomplete.', 'error');
       return;
@@ -239,15 +233,15 @@ export default function OnboardingScreen() {
         return;
       }
       await saveOnboardingProfile(session.user.id, {
-        name: name.trim(),
+        name: watchStep1('name').trim(),
         age: parsedAge,
         bloodType: bloodType.trim(),
         allergies,
         currentMedications: medications,
         chronicConditions: chronic,
-        emergencyContactName: emergencyName.trim(),
-        emergencyContactPhone: emergencyPhone.replace(/\s/g, ''),
-        locationConsent,
+        emergencyContactName: data.emergency_contact_name.trim(),
+        emergencyContactPhone: data.emergency_contact_phone.replace(/\s/g, ''),
+        locationConsent: data.location_consent,
       });
       showToast('Profile saved', 'success');
       router.replace('/(drawer)/dashboard');
@@ -303,21 +297,56 @@ export default function OnboardingScreen() {
                 <Text style={styles.avatarCaption}>Add photo (optional)</Text>
       </View>
               <Text style={styles.fieldLabel}>Full name *</Text>
-              <TextInput value={name} onChangeText={setName} style={styles.input} placeholder="Full name" placeholderTextColor={colors.textTertiary} />
-              <Text style={styles.fieldLabel}>Age *</Text>
-        <TextInput
-                value={age}
-                onChangeText={setAge}
-                keyboardType="number-pad"
-          style={styles.input}
-                placeholder="Your age"
-                placeholderTextColor={colors.textTertiary}
+              <Controller
+                control={step1Control}
+                name="name"
+                render={({ field: { onChange, value, onBlur } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    style={styles.input}
+                    placeholder="Full name"
+                    placeholderTextColor={colors.textTertiary}
+                  />
+                )}
               />
+              {step1Errors.name?.message ? (
+                <Text style={styles.fieldError}>{step1Errors.name.message}</Text>
+              ) : null}
+              <Text style={styles.fieldLabel}>Age *</Text>
+        <Controller
+                control={step1Control}
+                name="age"
+                render={({ field: { onChange, value, onBlur } }) => (
+                  <TextInput
+                    value={value == null ? '' : String(value)}
+                    onChangeText={(t) => onChange(t)}
+                    onBlur={onBlur}
+                    keyboardType="number-pad"
+                    style={styles.input}
+                    placeholder="Your age"
+                    placeholderTextColor={colors.textTertiary}
+                  />
+                )}
+              />
+              {step1Errors.age?.message ? (
+                <Text style={styles.fieldError}>{String(step1Errors.age.message)}</Text>
+              ) : null}
               <Text style={styles.fieldLabel}>Blood type *</Text>
               <Pressable style={styles.select} onPress={() => setBloodModal(true)}>
                 <Text style={bloodType ? styles.selectVal : styles.selectPh}>{bloodType || 'Choose blood type'}</Text>
               </Pressable>
-              <Pressable style={styles.tealBtn} onPress={goNext}>
+              <Pressable
+                style={styles.tealBtn}
+                onPress={handleStep1Submit(() => {
+                  if (!bloodType.trim()) {
+                    showToast('Choose your blood type.', 'error');
+                    return;
+                  }
+                  setStep(1);
+                })}
+              >
                 <Text style={styles.tealBtnText}>Continue</Text>
                 <ChevronRight size={20} color={colors.textOnAccent} strokeWidth={2} />
               </Pressable>
@@ -361,22 +390,42 @@ export default function OnboardingScreen() {
               <Text style={styles.title}>Emergency contact</Text>
               <Text style={styles.sub}>Who should we notify in emergencies?</Text>
               <Text style={styles.fieldLabel}>Contact name *</Text>
-        <TextInput
-                value={emergencyName}
-                onChangeText={setEmergencyName}
-          style={styles.input}
-                placeholder="Full name"
-                placeholderTextColor={colors.textTertiary}
-        />
+        <Controller
+                control={step3Control}
+                name="emergency_contact_name"
+                render={({ field: { onChange, value, onBlur } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    style={styles.input}
+                    placeholder="Full name"
+                    placeholderTextColor={colors.textTertiary}
+                  />
+                )}
+              />
+              {step3Errors.emergency_contact_name?.message ? (
+                <Text style={styles.fieldError}>{step3Errors.emergency_contact_name.message}</Text>
+              ) : null}
               <Text style={styles.fieldLabel}>Phone * (09XXXXXXXX)</Text>
-        <TextInput
-                value={emergencyPhone}
-                onChangeText={setEmergencyPhone}
-          keyboardType="phone-pad"
-          style={styles.input}
-                placeholder="09XXXXXXXX"
-                placeholderTextColor={colors.textTertiary}
-        />
+        <Controller
+                control={step3Control}
+                name="emergency_contact_phone"
+                render={({ field: { onChange, value, onBlur } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    keyboardType="phone-pad"
+                    style={styles.input}
+                    placeholder="09XXXXXXXX"
+                    placeholderTextColor={colors.textTertiary}
+                  />
+                )}
+              />
+              {step3Errors.emergency_contact_phone?.message ? (
+                <Text style={styles.fieldError}>{step3Errors.emergency_contact_phone.message}</Text>
+              ) : null}
               <View style={styles.switchCard}>
           <View style={styles.switchText}>
                   <Text style={styles.switchTitle}>Allow location for facility finding</Text>
@@ -385,13 +434,21 @@ export default function OnboardingScreen() {
                   </Text>
           </View>
           <Switch
-            value={locationConsent}
-            onValueChange={setLocationConsent}
-                  trackColor={{ false: colors.border, true: colors.accent }}
-                  thumbColor={colors.surface}
+            value={watchStep3('location_consent') ?? locationConsent}
+            onValueChange={(v) => {
+              setLocationConsent(v);
+              // RHF stays source-of-truth for submit payload
+              setStep3Value('location_consent', v);
+            }}
+            trackColor={{ false: colors.border, true: colors.accent }}
+            thumbColor={colors.surface}
           />
         </View>
-              <Pressable style={[styles.tealBtn, busy && { opacity: 0.7 }]} onPress={complete} disabled={busy}>
+              <Pressable
+                style={[styles.tealBtn, busy && { opacity: 0.7 }]}
+                onPress={handleStep3Submit(complete)}
+                disabled={busy}
+              >
                 <Text style={styles.tealBtnText}>{busy ? 'Saving…' : 'Complete setup'}</Text>
               </Pressable>
       </View>
@@ -440,6 +497,13 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   title: { ...typography.h2, fontFamily: fonts.bodySemiBold, marginBottom: spacing.xs },
   sub: { ...typography.bodySmall, fontFamily: fonts.body, color: colors.textSecondary, marginBottom: spacing.lg },
+  fieldError: {
+    fontSize: 12,
+    fontFamily: fonts.body,
+    color: colors.error,
+    marginTop: -6,
+    marginBottom: spacing.sm,
+  },
   avatarBlock: { alignSelf: 'center', alignItems: 'center', marginBottom: spacing.lg },
   avatarImg: { width: 100, height: 100, borderRadius: 50 },
   avatarEmpty: {

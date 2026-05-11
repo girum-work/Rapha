@@ -1,0 +1,594 @@
+﻿=== package.json ===
+{
+  "name": "rapha",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo-google-fonts/cormorant-garamond": "^0.4.1",
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@hookform/resolvers": "^5.2.2",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-navigation/drawer": "^7.5.0",
+    "@supabase/supabase-js": "^2.87.1",
+    "@tanstack/react-query": "^5.100.9",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "expo": "~54.0.33",
+    "expo-blur": "~15.0.8",
+    "expo-build-properties": "^55.0.13",
+    "expo-constants": "~18.0.13",
+    "expo-font": "~14.0.11",
+    "expo-image-picker": "^17.0.10",
+    "expo-linear-gradient": "~15.0.8",
+    "expo-linking": "~8.0.12",
+    "expo-location": "^19.0.8",
+    "expo-notifications": "^0.32.17",
+    "expo-router": "^6.0.22",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "lottie-react-native": "~7.3.1",
+    "lucide-react-native": "^0.561.0",
+    "moti": "^0.30.0",
+    "nativewind": "^4.2.3",
+    "react": "19.1.0",
+    "react-hook-form": "^7.75.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-maps": "1.20.1",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "^15.12.1",
+    "react-native-worklets": "0.5.1",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^3.4.19",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@expo/ngrok": "^4.1.3",
+    "@types/react": "~19.1.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+=== babel.config.js ===
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: [
+      'nativewind/babel',
+      'react-native-reanimated/plugin'
+    ],
+  };
+};
+=== tailwind.config.js ===
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  darkMode: 'class',
+  content: [
+    './app/**/*.{js,jsx,ts,tsx}',
+    './src/**/*.{js,jsx,ts,tsx}',
+    './components/**/*.{js,jsx,ts,tsx}',
+  ],
+  presets: [require('nativewind/preset')],
+  theme: {
+    extend: {
+      colors: {
+        background: '#0A0F1C',
+        foreground: '#E8EDF4',
+        primary: {
+          DEFAULT: '#00C2A8',
+          foreground: '#FFFFFF',
+        },
+        secondary: {
+          DEFAULT: '#0A1628',
+          foreground: '#94A3B8',
+        },
+        destructive: {
+          DEFAULT: '#DC2626',
+          foreground: '#FFFFFF',
+        },
+        muted: {
+          DEFAULT: '#1E293B',
+          foreground: '#64748B',
+        },
+        accent: {
+          DEFAULT: '#00C2A8',
+          foreground: '#FFFFFF',
+        },
+        card: {
+          DEFAULT: 'rgba(255,255,255,0.06)',
+          foreground: '#E8EDF4',
+        },
+        border: 'rgba(255,255,255,0.10)',
+        input: 'rgba(255,255,255,0.07)',
+        ring: '#00C2A8',
+      },
+    },
+  },
+  plugins: [],
+}
+=== global.css ===
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .rapha-card {
+    @apply bg-card rounded-2xl border border-border p-4;
+  }
+
+  .rapha-input {
+    @apply bg-input border border-border rounded-2xl px-4 py-3 text-foreground text-[15px];
+  }
+
+  .rapha-btn-primary {
+    @apply bg-primary rounded-2xl px-6 py-4 items-center justify-center active:opacity-80;
+  }
+
+  .rapha-btn-outline {
+    @apply border border-primary rounded-2xl px-6 py-4 items-center justify-center active:opacity-80;
+  }
+
+  .rapha-badge {
+    @apply rounded-full px-3 py-1 text-xs font-semibold;
+  }
+
+  .rapha-section-header {
+    @apply text-[17px] font-bold text-foreground mb-3;
+  }
+}
+=== tsconfig.json ===
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  },
+  "exclude": ["dist-web", "supabase/functions"]
+}
+=== app.json ===
+{
+  "expo": {
+    "name": "Rapha",
+    "slug": "rapha",
+    "scheme": "rapha",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      "expo-image-picker",
+      "expo-font",
+      "expo-splash-screen"
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
+=== app/(drawer)/_layout.tsx ===
+import type { DrawerContentComponentProps } from '@react-navigation/drawer';
+import { DrawerContentScrollView } from '@react-navigation/drawer';
+import {
+  BookOpen,
+  ClipboardList,
+  History,
+  MessageCircle,
+  Settings,
+  Stethoscope,
+  Watch,
+} from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Drawer } from 'expo-router/drawer';
+import { subscribeProfileRowUpdated } from '../../src/lib/authProfile';
+import { hasSupabaseConfig, supabase } from '../../src/lib/supabase';
+import { colors, spacing } from '../../src/theme';
+
+const iconSize = 20;
+
+const ROUTE_META: Record<string, { label: string; Icon: typeof MessageCircle }> = {
+  index: { label: 'Dr Lucas    ðŸ’¬', Icon: MessageCircle },
+  dashboard: { label: 'Dashboard    ðŸ“Š', Icon: ClipboardList },
+  history: { label: 'History    ðŸ•', Icon: History },
+  learn: { label: 'Learn    ðŸ“š', Icon: BookOpen },
+  accessories: { label: 'Accessories    âŒš', Icon: Watch },
+  services: { label: 'Care Options    ðŸ¥', Icon: Stethoscope },
+  settings: { label: 'Settings    âš™ï¸', Icon: Settings },
+};
+
+const ROUTE_ORDER = ['index', 'dashboard', 'history', 'learn', 'accessories', 'services', 'settings'];
+
+function DrawerContent(props: DrawerContentComponentProps) {
+  const { state, navigation } = props;
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+
+  const loadProfile = useCallback(async () => {
+    if (!hasSupabaseConfig || !supabase) {
+      setDisplayName('Guest');
+      setEmail('');
+      return;
+    }
+    const { data: userData } = await supabase.auth.getUser();
+    const u = userData.user;
+    const em = u?.email ?? '';
+    setEmail(em);
+    if (!u?.id) {
+      setDisplayName(em ? em.split('@')[0] : 'Guest');
+      return;
+    }
+    const { data } = await supabase.from('profiles').select('display_name').eq('id', u.id).maybeSingle();
+    const name = (data?.display_name as string | null)?.trim();
+    setDisplayName(name || (em ? em.split('@')[0] : 'Guest'));
+  }, []);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
+  useEffect(() => {
+    return subscribeProfileRowUpdated(() => {
+      void loadProfile();
+    });
+  }, [loadProfile]);
+
+  const initial = useMemo(() => {
+    const s = displayName.trim() || email.trim() || '?';
+    return s.charAt(0).toUpperCase();
+  }, [displayName, email]);
+
+  const sortedRoutes = useMemo(() => {
+    const routes = [...state.routes];
+    routes.sort((a, b) => {
+      const ia = ROUTE_ORDER.indexOf(a.name);
+      const ib = ROUTE_ORDER.indexOf(b.name);
+      const sa = ia === -1 ? 999 : ia;
+      const sb = ib === -1 ? 999 : ib;
+      return sa - sb;
+    });
+    return routes;
+  }, [state.routes]);
+
+  const activeRouteName = state.routes[state.index]?.name;
+
+  return (
+    <DrawerContentScrollView
+      {...props}
+      style={styles.drawer}
+      contentContainerStyle={styles.drawerContent}
+    >
+      <View style={styles.profileBlock}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{initial}</Text>
+        </View>
+        <Text style={styles.name}>{displayName || 'Guest'}</Text>
+        <Text style={styles.email} numberOfLines={2}>
+          {email || ' '}
+        </Text>
+      </View>
+
+      <View style={styles.divider} />
+
+      <View style={styles.navBlock}>
+        {sortedRoutes
+          .filter((route) => route.name !== 'account' && route.name !== 'lesson')
+          .map((route) => {
+            const focused = activeRouteName === route.name;
+            const meta = ROUTE_META[route.name];
+            if (!meta) return null;
+            const { Icon, label } = meta;
+            return (
+              <Pressable
+                key={route.key}
+                accessibilityRole="button"
+                onPress={() => {
+                  const event = navigation.emit({
+                    type: 'drawerItemPress',
+                    target: route.key,
+                    canPreventDefault: true,
+                  });
+                  if (!event.defaultPrevented) {
+                    navigation.navigate(route.name, route.params);
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.navItem,
+                  focused && styles.navItemActive,
+                  pressed && styles.navItemPressed,
+                ]}
+              >
+                <Icon size={iconSize} color={focused ? colors.accent : colors.textTertiary} strokeWidth={2} />
+                <Text style={[styles.navLabel, focused && styles.navLabelActive]} numberOfLines={1}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+      </View>
+
+      <View style={styles.spacer} />
+      <View style={styles.footer}>
+        <Text style={styles.footerLine}>Rapha v1.0</Text>
+        <Text style={styles.footerSub}>Ethiopia Â· MVP</Text>
+      </View>
+    </DrawerContentScrollView>
+  );
+}
+
+export default function DrawerLayout() {
+  return (
+    <Drawer
+      drawerContent={(p) => <DrawerContent {...p} />}
+      screenOptions={{
+        drawerType: 'slide',
+        headerShown: false,
+        drawerStyle: { backgroundColor: colors.primary, width: 300 },
+      }}
+    >
+      <Drawer.Screen name="index" />
+      <Drawer.Screen name="dashboard" />
+      <Drawer.Screen name="history" />
+      <Drawer.Screen name="learn" />
+      <Drawer.Screen name="accessories" />
+      <Drawer.Screen name="services" />
+      <Drawer.Screen name="settings" />
+      <Drawer.Screen name="lesson" />
+      <Drawer.Screen name="account" />
+    </Drawer>
+  );
+}
+
+const styles = StyleSheet.create({
+  drawer: { backgroundColor: colors.primary },
+  drawerContent: { flexGrow: 1, paddingTop: 60, paddingBottom: spacing.lg },
+  profileBlock: { paddingHorizontal: spacing.lg },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { color: colors.textOnAccent, fontSize: 22, fontWeight: '700' },
+  name: { color: colors.onDark, fontSize: 17, fontWeight: '700', marginTop: spacing.md },
+  email: { color: colors.textTertiary, fontSize: 13, marginTop: spacing.xs },
+  divider: { height: 1, backgroundColor: colors.primaryMid, marginVertical: spacing.lg },
+  navBlock: { paddingRight: spacing.sm },
+  navItem: {
+    height: 52,
+    paddingLeft: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
+  },
+  navItemActive: {
+    backgroundColor: colors.primaryMid,
+    borderLeftColor: colors.accent,
+  },
+  navItemPressed: { opacity: 0.85 },
+  navLabel: {
+    color: colors.onDark,
+    fontSize: 15,
+    marginLeft: spacing.md,
+  },
+  navLabelActive: {
+    fontWeight: '700',
+  },
+  spacer: { flex: 1 },
+  footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+  footerLine: { color: '#475569', fontSize: 12, fontWeight: '600' },
+  footerSub: { color: '#475569', fontSize: 12, marginTop: spacing.xs },
+});
+=== src/theme.ts ===
+export const colors = {
+  primary: '#0A1628',
+  primaryMid: '#1B3A6B',
+  accent: '#00C2A8',
+  accentLight: '#E6FAF8',
+  accentDark: '#008F7A',
+  emergency: '#DC2626',
+  emergencyLight: '#FEF2F2',
+  urgent: '#D97706',
+  urgentLight: '#FFFBEB',
+  mild: '#059669',
+  mildLight: '#ECFDF5',
+  info: '#3B82F6',
+  infoLight: '#EFF6FF',
+  surface: '#FFFFFF',
+  background: '#F8FAFC',
+  border: '#E2E8F0',
+  borderStrong: '#CBD5E1',
+  textPrimary: '#0F172A',
+  textSecondary: '#64748B',
+  textTertiary: '#94A3B8',
+  textOnAccent: '#FFFFFF',
+  textOnEmergency: '#FFFFFF',
+  drLucasBubble: '#0A1628',
+  drLucasText: '#FFFFFF',
+  userBubble: '#00C2A8',
+  userText: '#FFFFFF',
+  canvas: '#F8FAFC',
+  surfaceSoft: '#F1F5F9',
+  surfaceCard: '#FFFFFF',
+  surfaceCreamStrong: '#CBD5E1',
+  hairline: '#E2E8F0',
+  hairlineSoft: '#E2E8F0',
+  ink: '#0F172A',
+  body: '#0F172A',
+  bodyStrong: '#0F172A',
+  muted: '#64748B',
+  mutedSoft: '#94A3B8',
+  primaryActive: '#1B3A6B',
+  primaryDisabled: '#CBD5E1',
+  onPrimary: '#FFFFFF',
+  surfaceDark: '#0A1628',
+  surfaceDarkElevated: '#1B3A6B',
+  surfaceDarkSoft: '#1B3A6B',
+  onDark: '#FFFFFF',
+  onDarkSoft: '#94A3B8',
+  accentTeal: '#00C2A8',
+  accentAmber: '#D97706',
+  success: '#059669',
+  warning: '#D97706',
+  error: '#DC2626',
+  surfaceMuted: '#F8FAFC',
+  text: '#0F172A',
+  textMuted: '#64748B',
+  primarySoft: 'rgba(10,22,40,0.12)',
+  danger: '#DC2626',
+  dangerSoft: '#FEF2F2',
+  warningSoft: '#FFFBEB',
+  successSoft: '#ECFDF5',
+};
+
+export const spacing = {
+  xxs: 4,
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+};
+
+export const radius = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  full: 9999,
+  pill: 9999,
+};
+
+export const typography = {
+  h1: { fontSize: 28, fontWeight: '700' as const, letterSpacing: -0.5, color: colors.textPrimary },
+  h2: { fontSize: 22, fontWeight: '700' as const, letterSpacing: -0.3, color: colors.textPrimary },
+  h3: { fontSize: 17, fontWeight: '600' as const, color: colors.textPrimary },
+  body: { fontSize: 15, fontWeight: '400' as const, lineHeight: 22, color: colors.textPrimary },
+  bodySmall: { fontSize: 13, fontWeight: '400' as const, lineHeight: 18, color: colors.textSecondary },
+  caption: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: colors.textTertiary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  label: { fontSize: 13, fontWeight: '600' as const, color: colors.textSecondary },
+  authBrand: { fontSize: 32, fontWeight: '700' as const, letterSpacing: -0.6, color: colors.primary },
+  authTagline: { fontSize: 14, fontWeight: '400' as const, lineHeight: 22, color: colors.textSecondary },
+  authWelcome: { fontSize: 22, fontWeight: '700' as const, letterSpacing: -0.3, color: colors.textPrimary },
+  authLead: { fontSize: 15, fontWeight: '400' as const, lineHeight: 22, color: colors.textSecondary },
+  authCta: { fontSize: 15, fontWeight: '600' as const },
+  authSecondaryCta: { fontSize: 15, fontWeight: '600' as const, color: colors.textPrimary },
+  otpDigit: { fontSize: 22, fontWeight: '600' as const, color: colors.textPrimary },
+};
+
+export const fonts = {
+  display: 'System',
+  displayRegular: 'System',
+  body: 'System',
+  bodyRegular: 'System',
+  bodyMedium: 'System',
+  bodySemiBold: 'System',
+  bodyBold: 'System',
+} as const;
+=== src/lib/supabase.ts ===
+import 'react-native-url-polyfill/auto';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
+
+export const supabase = hasSupabaseConfig
+  ? createClient(supabaseUrl as string, supabaseAnonKey as string, {
+      auth: {
+        storage: AsyncStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+  : null;
+=== FILE LIST ===
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(ambulance)\home.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(ambulance)\map.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(ambulance)\profile.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(ambulance)\_layout.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\accessories.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\account.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\dashboard.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\history.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\index.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\learn.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\lesson.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\services.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\settings.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\(drawer)\_layout.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\onboarding.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\sign-in.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\sign-up.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\verify-otp.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\app\_layout.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\components\chat\RichContent.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\components\ui\badge.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\components\ui\button.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\components\ui\card.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\components\ui\skeleton.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\components\LearnDailyQuizModal.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\components\ScreenErrorBoundary.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\components\Skeleton.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\components\ui.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\context\ToastContext.tsx
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\data\facilities.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\data\learn.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\data\learnCurriculum.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\hooks\queries.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\animations.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\authProfile.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\dateUtils.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\debugIngest.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\facilitySearch.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\mockTriage.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\schemas.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\sessionStore.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\supabase.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\utils.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\lib\wearables.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\store\index.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\theme.ts
+C:\Users\Len\Documents\Programming\Projects\Rapha\src\types.ts

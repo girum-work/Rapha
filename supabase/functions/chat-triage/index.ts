@@ -31,6 +31,14 @@ type Structured = {
   confidence: number;
   next_question?: string;
   question_options?: string[];
+  content_type?: 'openui';
+  content?: {
+    blocks: (
+      | { type: 'bullets'; title?: string; items: string[] }
+      | { type: 'callout'; title: string; body?: string; tone?: 'neutral' | 'warning' | 'danger' | 'success' }
+      | { type: 'cta'; label: string; action: 'navigate' | 'remind' | 'none'; value?: string }
+    )[];
+  };
   red_flags: string[];
   action: TriageAction;
   required_services: string[];
@@ -285,6 +293,14 @@ ${profileBlock}
     "confidence":0,
     "next_question":"optional",
     "question_options":["only when action is ask_more: 3-4 short tap labels, e.g. Since when?, Mild, Severe, Not sure"],
+    "content_type":"optional: openui",
+    "content":{
+      "blocks":[
+        {"type":"callout","title":"Optional","body":"Optional","tone":"neutral|warning|danger|success"},
+        {"type":"bullets","title":"Optional","items":["..."]},
+        {"type":"cta","label":"Optional","action":"navigate|remind|none","value":"optional"}
+      ]
+    },
     "red_flags":["..."],
     "action":"same as rapha_action",
     "required_services":["emergency"|"lab"|"pharmacy"],
@@ -422,6 +438,20 @@ function mockResponse(lastUser: string, generic = false): { reply: string; struc
         action === 'ask_more'
           ? ['Since today', 'A few days', 'Getting worse', 'Not sure']
           : undefined,
+      content_type: generic ? 'openui' : undefined,
+      content:
+        generic
+          ? {
+              blocks: [
+                {
+                  type: 'callout',
+                  title: 'Quick note',
+                  body: 'If you can, share when it started and how severe it feels (1–10).',
+                  tone: 'neutral',
+                },
+              ],
+            }
+          : undefined,
       red_flags: ['chest pain', 'trouble breathing', 'heavy bleeding', 'confusion', 'loss of consciousness'],
       action,
       required_services: emergency ? ['emergency'] : [],
@@ -441,6 +471,50 @@ function normalizeStructured(raw?: Partial<Structured>): Structured {
     ? raw.question_options.map((s) => String(s).trim()).filter((s) => s.length > 0).slice(0, 6)
     : undefined;
   const actionResolved = isAction(String(raw.action)) ? (raw.action as TriageAction) : base.action;
+
+  const contentType = raw.content_type === 'openui' ? 'openui' : undefined;
+  const blocksRaw = (raw.content as { blocks?: unknown })?.blocks;
+  const blocks = Array.isArray(blocksRaw)
+    ? blocksRaw
+        .map((b) => {
+          if (!b || typeof b !== 'object') return null;
+          const t = String((b as { type?: unknown }).type ?? '').trim();
+          if (t === 'bullets') {
+            const items = Array.isArray((b as { items?: unknown }).items)
+              ? (b as { items: unknown[] }).items.map((x) => String(x).trim()).filter(Boolean).slice(0, 10)
+              : [];
+            if (items.length === 0) return null;
+            const title = typeof (b as { title?: unknown }).title === 'string' ? String((b as { title: string }).title) : undefined;
+            return { type: 'bullets' as const, title, items };
+          }
+          if (t === 'callout') {
+            const title = typeof (b as { title?: unknown }).title === 'string' ? String((b as { title: string }).title).trim() : '';
+            if (!title) return null;
+            const body = typeof (b as { body?: unknown }).body === 'string' ? String((b as { body: string }).body) : undefined;
+            const toneRaw = String((b as { tone?: unknown }).tone ?? '').trim();
+            const tone =
+              toneRaw === 'warning' || toneRaw === 'danger' || toneRaw === 'success' || toneRaw === 'neutral'
+                ? (toneRaw as 'neutral' | 'warning' | 'danger' | 'success')
+                : undefined;
+            return { type: 'callout' as const, title, body, tone };
+          }
+          if (t === 'cta') {
+            const label = typeof (b as { label?: unknown }).label === 'string' ? String((b as { label: string }).label).trim() : '';
+            if (!label) return null;
+            const actionRaw = String((b as { action?: unknown }).action ?? '').trim();
+            const action =
+              actionRaw === 'navigate' || actionRaw === 'remind' || actionRaw === 'none'
+                ? (actionRaw as 'navigate' | 'remind' | 'none')
+                : 'none';
+            const value = typeof (b as { value?: unknown }).value === 'string' ? String((b as { value: string }).value) : undefined;
+            return { type: 'cta' as const, label, action, value };
+          }
+          return null;
+        })
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+
   return {
     conditions,
     severity: isSeverity(String(raw.severity)) ? raw.severity as Severity : base.severity,
@@ -456,6 +530,8 @@ function normalizeStructured(raw?: Partial<Structured>): Structured {
     action: actionResolved,
     required_services: Array.isArray(raw.required_services) ? raw.required_services : base.required_services,
     safety_disclaimer: typeof raw.safety_disclaimer === 'string' ? raw.safety_disclaimer : disclaimer,
+    content_type: contentType,
+    content: contentType && blocks.length > 0 ? { blocks } : undefined,
   };
 }
 

@@ -19,6 +19,29 @@ export type ConditionRank = {
   rationale: string;
 };
 
+export type RichBlock =
+  | {
+      type: 'bullets';
+      title?: string;
+      items: string[];
+    }
+  | {
+      type: 'callout';
+      title: string;
+      body?: string;
+      tone?: 'neutral' | 'warning' | 'danger' | 'success';
+    }
+  | {
+      type: 'cta';
+      label: string;
+      action: 'navigate' | 'remind' | 'none';
+      value?: string;
+    };
+
+export type RichContent = {
+  blocks: RichBlock[];
+};
+
 export type TriageResponse = {
   conditions: ConditionRank[];
   severity: Severity;
@@ -30,6 +53,9 @@ export type TriageResponse = {
   action: TriageAction;
   required_services: string[];
   safety_disclaimer: string;
+  /** Optional OpenUI-style blocks to render below assistant text */
+  content_type?: 'openui';
+  content?: RichContent;
 };
 
 export type ChatMessage = {

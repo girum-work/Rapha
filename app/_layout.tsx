@@ -25,6 +25,8 @@ import { ToastProvider } from '../src/context/ToastContext';
 import { subscribeProfileRowUpdated } from '../src/lib/authProfile';
 import { hasSupabaseConfig, supabase } from '../src/lib/supabase';
 import { colors, fonts } from '../src/theme';
+import '../global.css'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 

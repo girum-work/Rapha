@@ -1,8 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { AnimatePresence, MotiView } from 'moti';
+import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { colors, radius, spacing, typography } from '../theme';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -22,13 +21,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const [message, setMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<ToastType>('info');
-  const slide = useRef(new Animated.Value(-100)).current;
 
   const hide = useCallback(() => {
-    Animated.timing(slide, { toValue: -100, duration: 200, useNativeDriver: true }).start(() => {
-      setMessage(null);
-    });
-  }, [slide]);
+    setMessage(null);
+  }, []);
 
   const showToast = useCallback(
     (msg: string, type: ToastType = 'info') => {
@@ -40,57 +36,38 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!message) return;
-    slide.setValue(-100);
-    Animated.timing(slide, { toValue: 0, duration: 240, useNativeDriver: true }).start();
     const t = setTimeout(hide, 2500);
     return () => clearTimeout(t);
-  }, [message, hide, slide]);
+  }, [message, hide]);
 
   const bg =
-    toastType === 'success' ? colors.success : toastType === 'error' ? colors.error : colors.info;
+    toastType === 'success'
+      ? 'bg-emerald-500'
+      : toastType === 'error'
+        ? 'bg-red-500'
+        : 'bg-sky-500';
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {message ? (
-        <Animated.View
-          pointerEvents="box-none"
-          style={[
-            styles.wrap,
-            {
-              paddingTop: insets.top + spacing.sm,
-              transform: [{ translateY: slide }],
-            },
-          ]}
-        >
-          <Pressable style={[styles.bar, { backgroundColor: bg }]} onPress={hide}>
-            <Text style={styles.text}>{message}</Text>
-          </Pressable>
-        </Animated.View>
-      ) : null}
+      <AnimatePresence>
+        {message ? (
+          <View pointerEvents="box-none" className="absolute left-0 right-0 top-0 z-50 items-center">
+            <MotiView
+              from={{ translateY: -100, opacity: 0 }}
+              animate={{ translateY: 0, opacity: 1 }}
+              exit={{ translateY: -100, opacity: 0 }}
+              transition={{ type: 'timing', duration: 220 }}
+              style={{ paddingTop: insets.top + 8 }}
+              className="w-full items-center"
+            >
+              <Pressable onPress={hide} className={`max-w-[92%] rounded-2xl px-4 py-3 ${bg}`}>
+                <Text className="text-center text-[13px] font-semibold text-white">{message}</Text>
+              </Pressable>
+            </MotiView>
+          </View>
+        ) : null}
+      </AnimatePresence>
     </ToastContext.Provider>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    alignItems: 'center',
-    zIndex: 2000,
-  },
-  bar: {
-    maxWidth: '92%',
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-  },
-  text: {
-    ...typography.bodySmall,
-    color: colors.textOnAccent,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-});
